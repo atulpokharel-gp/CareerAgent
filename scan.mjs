@@ -558,7 +558,7 @@ async function main() {
   if (verifiedOffers.length > 0) {
     console.log('\nNew offers:');
     for (const o of verifiedOffers) {
-      console.log(`  + ${o.company} | ${o.title} | ${o.location || 'N/A'}`);
+      console.log(`  + ${o.company} | ${o.title} | ${o.location || 'N/A'} | ${o.url}`);
     }
     if (dryRun) {
       console.log('\n(dry run — run without --dry-run to save results)');

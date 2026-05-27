@@ -16,7 +16,11 @@
     "liveness": "node check-liveness.mjs",
     "scan": "node scan.mjs",
     "patterns": "node analyze-patterns.mjs",
-    "gemini:eval": "node gemini-eval.mjs"
+    "gemini:eval": "node gemini-eval.mjs",
+    "web:install": "npm install --prefix apps/realtime-web",
+    "web:dev": "npm run dev --prefix apps/realtime-web",
+    "web:build": "npm run build --prefix apps/realtime-web",
+    "web:start": "npm run start --prefix apps/realtime-web"
   },
   "keywords": [
     "ai",

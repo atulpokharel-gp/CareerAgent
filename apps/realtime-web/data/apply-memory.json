@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": 1779860301604,
+  "ats": {
+    "ashby": {
+      "attempts": 1,
+      "successes": 0,
+      "strategy": "unsupported",
+      "learnedLessons": [],
+      "requiredExtraFields": {},
+      "fieldMappings": {},
+      "lastAttempt": 1779860301604
+    }
+  },
+  "jobs": {
+    "https://jobs.ashbyhq.com/faculty/82ffaf2f-f761-4201-9a0e-2c082f687079": {
+      "ats": "ashby",
+      "status": "unsupported",
+      "at": 1779860301604
+    }
+  }
+}

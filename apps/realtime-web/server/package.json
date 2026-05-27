@@ -1,0 +1,27 @@
+{
+  "name": "career-ops-realtime-server",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "lint": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@fastify/cors": "^10.0.2",
+    "@fastify/rate-limit": "^10.3.0",
+    "@fastify/sensible": "^6.0.3",
+    "fastify": "^5.6.1",
+    "nanoid": "^5.1.6",
+    "p-queue": "^8.1.0",
+    "redis": "^4.7.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.31",
+    "tsx": "^4.20.3",
+    "typescript": "^5.8.3"
+  }
+}
