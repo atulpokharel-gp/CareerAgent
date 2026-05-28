@@ -73,6 +73,9 @@ export async function registerSessionRoutes(app: FastifyInstance): Promise<void>
       scan: async () => app.scanRunner.runScan({
         verify,
         company,
+        // Pass CV-extracted roles so the portal scan is driven by the user's
+        // actual background, not the static portals.yml title_filter keywords.
+        roles: latest.context?.preferredRoles ?? [],
         logger: app.log,
         onEvent: (event) => {
           void app.sessionStore.emit(sessionId, event);
@@ -460,10 +463,13 @@ export async function registerSessionRoutes(app: FastifyInstance): Promise<void>
     const { verify, company } = parse.data;
     emitPhase(sessionId, "scan", "Scanning job sources");
 
+    // Grab latest session state for context (preferredRoles etc.)
+    const scanSession = await app.sessionStore.get(sessionId);
     app.scanRunner
       .runScan({
         verify,
         company,
+        roles: scanSession?.context?.preferredRoles ?? [],
         logger: app.log,
         onEvent: (event) => {
           void app.sessionStore.emit(sessionId, event);

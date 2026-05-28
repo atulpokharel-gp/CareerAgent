@@ -17,6 +17,7 @@ export class ScanRunner {
   runScan(options: {
     verify: boolean;
     company?: string;
+    roles?: string[];
     onEvent: (event: SessionEvent) => void;
     logger: FastifyBaseLogger;
   }): Promise<JobItem[]> {
@@ -38,6 +39,11 @@ export class ScanRunner {
       }
       if (options.company && options.company.trim().length > 0) {
         args.push("--company", options.company.trim());
+      }
+      // Pass CV-extracted roles so scan.mjs overrides portals.yml title filter —
+      // the scan is then driven by what the user actually does, not static keywords.
+      if (options.roles && options.roles.length > 0) {
+        args.push("--roles", options.roles.join(","));
       }
 
       const jobs: JobItem[] = [];

@@ -374,12 +374,56 @@ function guardStatusFor(code) {
   return 'skipped_invalid_url';
 }
 
+/**
+ * Expand a list of role titles (e.g. ["Machine Learning Engineer", "Data Scientist"]) into
+ * a broader set of title-filter keywords so the scanner can find the full range of matching
+ * job postings without being limited to exact phrase matches.
+ *
+ * Strategy:
+ *   1. Keep each full role as-is (longest/most-specific keyword wins in the filter).
+ *   2. Extract every consecutive 2-word slice from roles with 3+ words.
+ *   3. Keep single words that are ≥ 4 characters AND not generic stop words.
+ *
+ * Deduplication is applied at the end to keep the list small.
+ */
+function expandRoleKeywords(roles) {
+  const STOP = new Set(['and', 'the', 'for', 'with', 'that', 'this', 'lead', 'head',
+    'staff', 'principal', 'senior', 'junior', 'intern', 'manager']);
+
+  const out = new Set();
+  for (const role of roles) {
+    const trimmed = role.trim();
+    if (!trimmed) continue;
+    // Full role title — most specific
+    out.add(trimmed.toLowerCase());
+    const words = trimmed.split(/\s+/);
+    // 2-word bigrams
+    for (let i = 0; i < words.length - 1; i++) {
+      const bigram = `${words[i]} ${words[i + 1]}`.toLowerCase();
+      if (bigram.length >= 4) out.add(bigram);
+    }
+    // Significant single words
+    for (const word of words) {
+      const w = word.toLowerCase().replace(/[^a-z0-9+#]/g, '');
+      if (w.length >= 4 && !STOP.has(w)) out.add(w);
+    }
+  }
+  return [...out];
+}
+
 async function main() {
   const args = process.argv.slice(2);
   const dryRun = args.includes('--dry-run');
   const verify = args.includes('--verify');
   const companyFlag = args.indexOf('--company');
   const filterCompany = companyFlag !== -1 ? args[companyFlag + 1]?.toLowerCase() : null;
+
+  // --roles "AI Engineer,Data Scientist" — overrides title_filter.positive with CV-extracted
+  // roles so scanning is always driven by what the user actually does, not static portals.yml.
+  const rolesFlag = args.indexOf('--roles');
+  const rolesOverride = rolesFlag !== -1
+    ? (args[rolesFlag + 1] ?? '').split(',').map(r => r.trim()).filter(Boolean)
+    : null;
 
   // 1. Load providers
   const providers = await loadProviders(PROVIDERS_DIR);
@@ -396,7 +440,21 @@ async function main() {
 
   const config = parseYaml(readFileSync(PORTALS_PATH, 'utf-8'));
   const companies = config.tracked_companies || [];
-  const titleFilter = buildTitleFilter(config.title_filter);
+
+  // When the caller supplies --roles (typically from a parsed CV), derive a broad
+  // keyword set from those role titles and replace title_filter.positive entirely.
+  // This makes the scanner CV-driven rather than tied to whatever keywords happen
+  // to be in portals.yml. The negative list from portals.yml is always preserved.
+  let resolvedTitleFilterCfg = config.title_filter;
+  if (rolesOverride && rolesOverride.length > 0) {
+    const expandedKeywords = expandRoleKeywords(rolesOverride);
+    console.log(`Role-driven scan: using ${expandedKeywords.length} keywords derived from CV roles: ${rolesOverride.join(', ')}`);
+    resolvedTitleFilterCfg = {
+      positive: expandedKeywords,
+      negative: config.title_filter?.negative || [],
+    };
+  }
+  const titleFilter = buildTitleFilter(resolvedTitleFilterCfg);
   const locationFilter = buildLocationFilter(config.location_filter);
 
   // 3. Resolve a provider for each enabled company
