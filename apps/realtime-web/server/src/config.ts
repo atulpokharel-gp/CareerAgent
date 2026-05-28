@@ -50,4 +50,24 @@ export const config = {
   cvPdfPath: IS_VERCEL
     ? null
     : path.resolve(__dirname, "../../../../cv/startup_v4.pdf"),
+
+  /**
+   * Apply-policy guardrails — safety layer enforced before any application is
+   * submitted (browser or API). Values can be overridden per session through
+   * the AutomationSettings.policy field.
+   *
+   * - minApplyScore: 0-100 ranking score required for auto-apply. Default 80
+   *   maps to ~4.0/5 on the spec's 5-point scale (80% = grade A-).
+   * - allowAutoSubmit: master switch. If false, system prepares packets only.
+   * - dryRun: navigate + fill form, but never click submit.
+   * - safeMode: hard "never submit" — equivalent to dryRun but persistent.
+   * - maxApplicationsPerDay: throttle for autonomous loops.
+   */
+  applyPolicy: {
+    minApplyScore: Number(process.env.MIN_APPLY_SCORE || 80),
+    allowAutoSubmit: process.env.ALLOW_AUTO_SUBMIT !== "false",
+    dryRun: process.env.DRY_RUN === "true",
+    safeMode: process.env.SAFE_MODE === "true",
+    maxApplicationsPerDay: Number(process.env.MAX_APPLICATIONS_PER_DAY || 20),
+  },
 };

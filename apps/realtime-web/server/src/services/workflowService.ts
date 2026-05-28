@@ -11,7 +11,7 @@
  */
 
 import type { FastifyBaseLogger } from "fastify";
-import type { ProviderKey, SessionState, SessionEvent, DraftApplication, JobItem } from "../types.js";
+import type { ProviderKey, SessionState, SessionEvent, DraftApplication, JobItem, ApplyStatus } from "../types.js";
 import { parseCvWithLlm } from "./llmCvParser.js";
 import { parseCvTimeline } from "./cvTimelineParser.js";
 import { optimizeCvForAts } from "./cvAtsOptimizer.js";
@@ -29,7 +29,7 @@ export type WorkflowEvent =
   | { type: "wf_phase"; phase: WorkflowPhase; message: string; at: number }
   | { type: "wf_progress"; step: string; detail: string; at: number }
   | { type: "wf_job_ready"; jobUrl: string; company: string; title: string; atsScore: number; latexUrl: string | null; htmlUrl: string | null; at: number }
-  | { type: "wf_apply_result"; jobUrl: string; status: "submitted" | "failed" | "unsupported"; message: string; at: number }
+  | { type: "wf_apply_result"; jobUrl: string; status: ApplyStatus; message: string; at: number }
   | { type: "wf_done"; totalJobs: number; submitted: number; failed: number; at: number }
   | { type: "wf_error"; message: string; at: number };
 
@@ -63,7 +63,7 @@ export async function runWorkflow(opts: WorkflowOptions): Promise<void> {
     progress(opts, "parse", "Calling LLM to extract structured data…");
 
     const [parsed, timeline] = await Promise.all([
-      parseCvWithLlm(cv, providerKey.provider, providerKey.apiKey),
+      parseCvWithLlm({ provider: providerKey.provider, apiKey: providerKey.apiKey, cvText: cv }),
       parseCvTimeline(cv, providerKey),
     ]);
 

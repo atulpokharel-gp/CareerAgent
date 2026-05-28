@@ -25,7 +25,7 @@ import { extractCandidateInfo, detectAts } from "./autoApplyService.js";
 
 interface FieldAnswer {
   selector: string;
-  type: "text" | "select" | "file" | "checkbox" | "textarea";
+  type: "text" | "select" | "file" | "checkbox" | "textarea" | "email" | "tel";
   value: string;
   label: string;
 }
