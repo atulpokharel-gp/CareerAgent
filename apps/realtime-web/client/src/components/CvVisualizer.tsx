@@ -6,6 +6,8 @@ interface CvVisualizerProps {
   skills: string;
   atsScore: number | null;
   timeline?: CvTimeline | null;
+  preferredRoles?: string;
+  locations?: string;
 }
 
 // ── Parse skills from CV text ──────────────────────────────────────────────
@@ -71,7 +73,7 @@ function radarAxisEndpoint(idx: number, n: number, cx: number, cy: number, r: nu
   return [cx + r * Math.cos(angle), cy + r * Math.sin(angle)];
 }
 
-export function CvVisualizer({ cv, skills, atsScore, timeline }: CvVisualizerProps) {
+export function CvVisualizer({ cv, skills, atsScore, timeline, preferredRoles, locations }: CvVisualizerProps) {
   const combined = `${cv}\n${skills}`;
   const scores = scoreRadar(combined);
   const topKeywords = getTopKeywords(combined);
@@ -79,6 +81,10 @@ export function CvVisualizer({ cv, skills, atsScore, timeline }: CvVisualizerPro
   const expYears = timeline?.totalYearsExperience ?? 0;
   const roleCount = timeline?.experience.length ?? 0;
   const eduCount = timeline?.education.length ?? 0;
+
+  // Parse chips from comma-separated strings
+  const roleChips = (preferredRoles ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+  const locationChips = (locations ?? "").split(",").map((s) => s.trim()).filter(Boolean);
 
   const cx = 110, cy = 110, r = 80;
   const n = RADAR_AXES.length;
@@ -161,6 +167,51 @@ export function CvVisualizer({ cv, skills, atsScore, timeline }: CvVisualizerPro
             </div>
           ))}
         </div>
+
+        {/* Preferred Roles from CV */}
+        {roleChips.length > 0 && (
+          <div>
+            <p style={{ fontFamily: "var(--mono)", fontSize: "0.7rem", letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--purple)", opacity: 0.8, margin: "0 0 0.45rem" }}>Target Roles (from CV)</p>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "0.35rem" }}>
+              {roleChips.map((role) => (
+                <span key={role} style={{
+                  padding: "3px 12px",
+                  borderRadius: "9999px",
+                  background: "rgba(139,92,246,0.12)",
+                  border: "1px solid rgba(139,92,246,0.35)",
+                  fontFamily: "var(--mono)",
+                  fontSize: "0.72rem",
+                  color: "var(--purple)",
+                  fontWeight: 600,
+                }}>
+                  {role}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Locations from CV */}
+        {locationChips.length > 0 && (
+          <div>
+            <p style={{ fontFamily: "var(--mono)", fontSize: "0.7rem", letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--cyan)", opacity: 0.8, margin: "0 0 0.45rem" }}>Locations (from CV)</p>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "0.35rem" }}>
+              {locationChips.map((loc) => (
+                <span key={loc} style={{
+                  padding: "3px 12px",
+                  borderRadius: "9999px",
+                  background: "rgba(0,212,255,0.08)",
+                  border: "1px solid rgba(0,212,255,0.3)",
+                  fontFamily: "var(--mono)",
+                  fontSize: "0.72rem",
+                  color: "var(--cyan)",
+                }}>
+                  📍 {loc}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* ATS progress bar */}
         {atsScore !== null && (

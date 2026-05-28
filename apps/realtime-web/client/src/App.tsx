@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ChangeEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { bulkSubmitApplications, configureAutomation, createEventsSource, createSession, getDrafts, getJobs, parseCvWithLlm, startAutopilot, startScan, submitApplication, updateContext, fetchLocalInit, fetchLocalCvBlob, getApplyMemory, optimizeCvForAts, optimizeCvForJob, scoreCvAts, parseCvTimeline, generateCareerGoals, generateLatexCv, startWorkflow, fetchUserData, fetchJobStats, fetchTrackedJobs, updateJobStatus, type ApplyMemory, type AtsOptimizeResult, type CvTimeline, type LatexCvResult, type ApplyRecord, type DraftApplication, type JobItem, type RankedJob, type UserData, type TrackedJob, type JobStats } from "./lib/api";
 import { extractTextFromFile } from "./lib/fileText";
@@ -113,6 +113,9 @@ export default function App() {
   const [jobStats, setJobStats] = useState<JobStats>({ total: 0, shortlisted: 0, applied: 0, rejected: 0, skipped: 0 });
   const [historyJobs, setHistoryJobs] = useState<TrackedJob[]>([]);
   const [showHistoryPanel, setShowHistoryPanel] = useState(false);
+
+  // Tracks which CV text has already been auto-filled so we don't spam the LLM
+  const cvAutoFillKey = useRef("");
 
   // Timeline, goals, per-job ATS, and LaTeX states
   const [timeline, setTimeline] = useState<CvTimeline | null>(null);
@@ -593,6 +596,27 @@ export default function App() {
     if (m) setApplyMemoryData(m);
   }
 
+  // Auto-fill roles, locations, skills, goals from CV as soon as apiKey is ready.
+  // Uses a ref key so it only fires once per unique CV text — no re-runs on every keystroke.
+  useEffect(() => {
+    if (!sessionId || cv.trim().length < 100 || apiKey.trim().length < 12) return;
+    if (cvAutoFillKey.current === cv) return; // already ran for this CV
+    cvAutoFillKey.current = cv;
+
+    void parseCvWithLlm(sessionId, { provider, apiKey, cvText: cv })
+      .then((parsed) => {
+        // Always overwrite with CV-extracted values (they are the source of truth).
+        // The user can still edit the fields manually afterwards.
+        if (parsed.preferredRoles.length > 0) setRoles(parsed.preferredRoles.join(", "));
+        if (parsed.locations.length > 0) setLocations(parsed.locations.join(", "));
+        if (parsed.skills.length > 0 && skills.trim().length < 2) setSkills(parsed.skills.join(", "));
+        if (parsed.goals.trim().length > 0 && goals.trim().length < 2) setGoals(parsed.goals);
+        setFeed((prev) => [{ id: crypto.randomUUID(), text: `CV auto-analysed · ${parsed.preferredRoles.slice(0,2).join(", ")} · ${parsed.locations.slice(0,2).join(", ")}` }, ...prev].slice(0, 100));
+      })
+      .catch(() => { /* non-blocking */ });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cv, apiKey, sessionId]);
+
   // Auto-generate career goals + parse timeline whenever CV + API key are ready
   useEffect(() => {
     if (!sessionId || cv.trim().length < 100 || apiKey.trim().length < 12) return;
@@ -969,6 +993,8 @@ export default function App() {
               skills={skills}
               atsScore={atsScore}
               timeline={timeline}
+              preferredRoles={roles}
+              locations={locations}
             />
           </section>
         )}
