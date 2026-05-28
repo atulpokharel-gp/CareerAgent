@@ -1,6 +1,7 @@
 import type { FastifyBaseLogger } from "fastify";
 import PQueue from "p-queue";
 import type { DraftApplication, JobItem, RankedJob, SessionEvent, SessionState } from "../types.js";
+import { filterToNewJobs, getAppliedRoleKeywords } from "./persistentStorage.js";
 
 function toLowerSet(input: string[]): Set<string> {
   return new Set(input.map((item) => item.trim().toLowerCase()).filter(Boolean));
@@ -53,10 +54,16 @@ function locationMatches(jobLocation: string, locationHints: Set<string>): boole
   return false;
 }
 
-function rankJobs(jobs: JobItem[], session: SessionState, maxJobs: number): RankedJob[] {
+function rankJobs(
+  jobs: JobItem[],
+  session: SessionState,
+  maxJobs: number,
+  appliedKeywords: string[] = [],
+): RankedJob[] {
   const roleHints = toLowerSet(session.context?.preferredRoles || []);
   const locationHints = toLowerSet(session.context?.locations || []);
   const skillHints = toLowerSet((session.context?.skills || "").split(/[\n,]/));
+  const appliedSet = new Set(appliedKeywords.map((k) => k.toLowerCase().trim()));
 
   const ranked = jobs
     // ── Location filter: only keep jobs that satisfy the user's location prefs ──
@@ -94,6 +101,20 @@ function rankJobs(jobs: JobItem[], session: SessionState, maxJobs: number): Rank
         score += 10;
         reasons.push("ATS-compatible endpoint");
       }
+
+      // ── Applied-role feedback boost ──────────────────────────────────────
+      // Boost roles similar to ones the user has already applied to. This makes
+      // future scans surface more of the same type without ignoring new signals.
+      let appliedBoost = 0;
+      for (const kw of appliedSet) {
+        if (title.includes(kw)) {
+          appliedBoost += 15;
+          if (!reasons.some((r) => r.startsWith("Similar to applied"))) {
+            reasons.push(`Similar to applied role (${kw})`);
+          }
+        }
+      }
+      score += Math.min(appliedBoost, 30); // cap boost at 30 pts
 
       return {
         ...job,
@@ -152,11 +173,47 @@ export class AutopilotRunner {
     scan: () => Promise<JobItem[]>;
     onEvent: (event: SessionEvent) => void;
     logger: FastifyBaseLogger;
-  }): Promise<{ ranked: RankedJob[]; drafts: DraftApplication[] }> {
+  }): Promise<{ ranked: RankedJob[]; drafts: DraftApplication[]; newJobsCount: number }> {
     return this.queue.add(async () => {
       params.onEvent({ type: "autopilot_started", at: Date.now() });
-      const jobs = await params.scan();
-      const ranked = rankJobs(jobs, params.session, params.session.automation.maxJobsPerRun);
+      const allJobs = await params.scan();
+
+      // ── Filter to only NEW jobs (not yet in the local DB) ────────────────
+      // This ensures each scan surfaces fresh opportunities rather than
+      // re-displaying the same 1000 jobs every run.
+      let newJobs: JobItem[];
+      try {
+        newJobs = await filterToNewJobs(allJobs);
+      } catch {
+        // If DB read fails (first run, disk error), fall back to all jobs
+        newJobs = allJobs;
+      }
+
+      params.onEvent({
+        type: "status",
+        message: `Found ${allJobs.length} total jobs · ${newJobs.length} new (${allJobs.length - newJobs.length} already seen)`,
+        at: Date.now(),
+      });
+
+      // ── Load applied-role keywords for scoring boost ──────────────────────
+      let appliedKeywords: string[] = [];
+      try {
+        appliedKeywords = await getAppliedRoleKeywords();
+        if (appliedKeywords.length > 0) {
+          params.onEvent({
+            type: "status",
+            message: `Boosting ${appliedKeywords.length} role keywords from your apply history`,
+            at: Date.now(),
+          });
+        }
+      } catch { /* non-blocking */ }
+
+      const ranked = rankJobs(
+        newJobs,
+        params.session,
+        params.session.automation.maxJobsPerRun,
+        appliedKeywords,
+      );
       params.onEvent({ type: "autopilot_ranked", count: ranked.length, at: Date.now() });
 
       const drafts: DraftApplication[] = [];
@@ -174,7 +231,7 @@ export class AutopilotRunner {
         });
       }
 
-      return { ranked, drafts };
-    }) as Promise<{ ranked: RankedJob[]; drafts: DraftApplication[] }>;
+      return { ranked, drafts, newJobsCount: newJobs.length };
+    }) as Promise<{ ranked: RankedJob[]; drafts: DraftApplication[]; newJobsCount: number }>;
   }
 }

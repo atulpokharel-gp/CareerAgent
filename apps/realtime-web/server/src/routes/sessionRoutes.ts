@@ -6,6 +6,7 @@ import { parseCvWithLlm } from "../services/llmCvParser.js";
 import { optimizeCvForAts, scoreAts } from "../services/cvAtsOptimizer.js";
 import { parseCvTimeline, generateCareerGoals } from "../services/cvTimelineParser.js";
 import { generateLatexCv } from "../services/cvLatexGenerator.js";
+import { upsertTrackedJobs } from "../services/persistentStorage.js";
 
 const contextSchema = z.object({
   cv: z.string().min(20).max(120_000),
@@ -84,6 +85,24 @@ export async function registerSessionRoutes(app: FastifyInstance): Promise<void>
     emitPhase(sessionId, "draft", "Preparing application drafts");
     await app.sessionStore.mergeDrafts(sessionId, result.drafts);
     await app.sessionStore.mergeJobs(sessionId, result.ranked);
+
+    // ── Persist all ranked jobs to local DB ────────────────────────────────
+    // This is the single source of truth: every job that passes ranking is
+    // recorded so (a) it's not shown again in future scans, and (b) the ranker
+    // can learn from what the user actually applies to.
+    void upsertTrackedJobs(
+      result.ranked.map((j) => ({
+        url: j.url,
+        company: j.company,
+        title: j.title,
+        location: j.location,
+        score: j.score,
+        reasons: j.reasons,
+        status: "shortlisted" as const,
+        scannedAt: Date.now(),
+      })),
+    );
+
     emitPhase(sessionId, "done", "Autonomous cycle completed");
   };
 

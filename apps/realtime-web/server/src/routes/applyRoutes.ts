@@ -4,6 +4,7 @@ import { AutoApplyService } from "../services/autoApplyService.js";
 import { browserApplyService } from "../services/browserApplyService.js";
 import { IS_VERCEL, config } from "../config.js";
 import type { ApplyPolicy, ApplyRecord, DraftApplication, RankedJob, SessionState } from "../types.js";
+import { markJobStatus } from "../services/persistentStorage.js";
 
 const autoApplyService = new AutoApplyService();
 
@@ -208,6 +209,14 @@ export async function registerApplyRoutes(app: FastifyInstance): Promise<void> {
 
     await app.sessionStore.addApplyRecord(sessionId, record);
 
+    // Persist outcome to local DB so it's never re-shown in future scans and
+    // the ranker learns from this role keyword.
+    void markJobStatus(
+      record.jobUrl,
+      record.status === "submitted" ? "applied" : "rejected",
+      Date.now(),
+    );
+
     void app.sessionStore.emit(sessionId, {
       type: "status",
       message: record.status === "submitted"
@@ -280,6 +289,13 @@ export async function registerApplyRoutes(app: FastifyInstance): Promise<void> {
       await app.sessionStore.addApplyRecord(sessionId, record);
       records.push(record);
       if (record.status === "submitted") submittedToday++;
+
+      // Persist outcome to local DB
+      void markJobStatus(
+        record.jobUrl,
+        record.status === "submitted" ? "applied" : "rejected",
+        Date.now(),
+      );
 
       void app.sessionStore.emit(sessionId, {
         type: "status",

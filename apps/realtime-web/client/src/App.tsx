@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ChangeEvent } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { bulkSubmitApplications, configureAutomation, createEventsSource, createSession, getDrafts, getJobs, parseCvWithLlm, startAutopilot, startScan, submitApplication, updateContext, fetchLocalInit, fetchLocalCvBlob, getApplyMemory, optimizeCvForAts, optimizeCvForJob, scoreCvAts, parseCvTimeline, generateCareerGoals, generateLatexCv, startWorkflow, fetchUserData, type ApplyMemory, type AtsOptimizeResult, type CvTimeline, type LatexCvResult, type ApplyRecord, type DraftApplication, type JobItem, type RankedJob, type UserData } from "./lib/api";
+import { bulkSubmitApplications, configureAutomation, createEventsSource, createSession, getDrafts, getJobs, parseCvWithLlm, startAutopilot, startScan, submitApplication, updateContext, fetchLocalInit, fetchLocalCvBlob, getApplyMemory, optimizeCvForAts, optimizeCvForJob, scoreCvAts, parseCvTimeline, generateCareerGoals, generateLatexCv, startWorkflow, fetchUserData, fetchJobStats, fetchTrackedJobs, updateJobStatus, type ApplyMemory, type AtsOptimizeResult, type CvTimeline, type LatexCvResult, type ApplyRecord, type DraftApplication, type JobItem, type RankedJob, type UserData, type TrackedJob, type JobStats } from "./lib/api";
 import { extractTextFromFile } from "./lib/fileText";
 import { CvTimelineChart } from "./components/CvTimelineChart";
 import { CvChatbot } from "./components/CvChatbot";
@@ -109,6 +109,11 @@ export default function App() {
   const [isOptimizingCv, setIsOptimizingCv] = useState(false);
   const [atsOptimizeResult, setAtsOptimizeResult] = useState<AtsOptimizeResult | null>(null);
 
+  // Persistent job DB state (survives page refresh, populated from /api/data/*)
+  const [jobStats, setJobStats] = useState<JobStats>({ total: 0, shortlisted: 0, applied: 0, rejected: 0, skipped: 0 });
+  const [historyJobs, setHistoryJobs] = useState<TrackedJob[]>([]);
+  const [showHistoryPanel, setShowHistoryPanel] = useState(false);
+
   // Timeline, goals, per-job ATS, and LaTeX states
   const [timeline, setTimeline] = useState<CvTimeline | null>(null);
   const [isParsingTimeline, setIsParsingTimeline] = useState(false);
@@ -211,8 +216,6 @@ export default function App() {
             if (text.trim().length > 20) {
               setCv(text);
               setFeed((prev) => [{ id: crypto.randomUUID(), text: "Preloaded CV: startup_v4.pdf" }, ...prev].slice(0, 100));
-              // Auto-trigger timeline + goals parse once API key is available
-              // Will be triggered by the cv+apiKey effect below
             }
           }
         }
@@ -222,6 +225,10 @@ export default function App() {
       }
     }
     void preload();
+
+    // Load persistent job stats from the local DB — runs independently from
+    // session setup so history is always visible on page load.
+    void fetchJobStats().then(setJobStats);
   }, []);
 
   useEffect(() => {
@@ -239,6 +246,10 @@ export default function App() {
       const payload = JSON.parse(messageEvent.data) as { phase: StepId; message: string };
       setPhase(payload.phase, payload.message);
       setFeed((prev) => [{ id: crypto.randomUUID(), text: `Step: ${payload.message}` }, ...prev].slice(0, 100));
+      // Refresh persistent job stats whenever a cycle completes so the topbar stays accurate
+      if (payload.phase === "done") {
+        void fetchJobStats().then(setJobStats);
+      }
     });
 
     source.addEventListener("scan_line", (event) => {
@@ -687,7 +698,7 @@ export default function App() {
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}>
           {/* Stats bar */}
-          {(jobs.length > 0 || drafts.length > 0 || applyRecords.length > 0) && (
+          {(jobs.length > 0 || drafts.length > 0 || applyRecords.length > 0 || jobStats.total > 0) && (
             <div style={{ display: "flex", gap: "0.75rem", fontFamily: "var(--mono)", fontSize: "0.7rem", color: "var(--ink-2)" }}>
               {jobs.length > 0 && <span style={{ color: "var(--cyan)" }}>{jobs.length} jobs</span>}
               {drafts.length > 0 && <span style={{ color: "var(--purple)" }}>{drafts.length} drafts</span>}
@@ -700,6 +711,25 @@ export default function App() {
                 <span style={{ color: "var(--red)" }}>
                   {applyRecords.filter(r => r.status === "failed").length} failed
                 </span>
+              )}
+              {/* Persistent DB counts from disk — always accurate across restarts */}
+              {jobStats.applied > 0 && (
+                <span style={{ color: "var(--green)", borderLeft: "1px solid var(--border)", paddingLeft: "0.75rem" }}>
+                  DB: {jobStats.applied} applied
+                </span>
+              )}
+              {jobStats.total > 0 && (
+                <button
+                  onClick={() => {
+                    void fetchTrackedJobs().then(jobs => {
+                      setHistoryJobs(jobs);
+                      setShowHistoryPanel(true);
+                    });
+                  }}
+                  style={{ background: "none", border: "1px solid var(--border)", color: "var(--ink-2)", padding: "0.15rem 0.5rem", fontSize: "0.65rem", fontFamily: "var(--mono)", cursor: "pointer", borderRadius: "3px" }}
+                >
+                  {jobStats.total} seen ↗
+                </button>
               )}
               {autonomous && isBusy && (
                 <span style={{ color: "var(--amber)", animation: "pulse 1.4s ease-in-out infinite" }}>⚡ AUTOPILOT</span>
@@ -1522,6 +1552,88 @@ export default function App() {
                   ))}
                 </div>
               </>
+            )}
+          </section>
+        )}
+
+        {/* ── Persistent Job History ─────────────────────────────────────── */}
+        {showHistoryPanel && (
+          <section className="panel jobs">
+            <h2 style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
+              Job History (DB)
+              <span style={{ fontFamily: "var(--mono)", fontSize: "0.72rem", color: "var(--ink-2)", fontWeight: 400 }}>
+                · {jobStats.applied} applied · {jobStats.shortlisted} shortlisted · {jobStats.rejected} rejected · {jobStats.total} total seen
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowHistoryPanel(false)}
+                style={{ width: "auto", padding: "2px 10px", fontSize: "0.7rem", marginLeft: "auto" }}
+              >
+                ✕ Close
+              </button>
+            </h2>
+            <p style={{ fontFamily: "var(--mono)", fontSize: "0.78rem", color: "var(--ink-2)", marginBottom: "0.85rem" }}>
+              {'>'} all jobs ever scanned — saved to disk and survive server restarts. New scans skip any URL already in this list.
+            </p>
+            {/* Filter buttons */}
+            <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem", flexWrap: "wrap" }}>
+              {(["all", "applied", "shortlisted", "rejected", "skipped"] as const).map((f) => (
+                <button
+                  key={f}
+                  type="button"
+                  onClick={() => {
+                    const filter = f === "all" ? undefined : f;
+                    void fetchTrackedJobs(filter).then(setHistoryJobs);
+                  }}
+                  style={{ width: "auto", padding: "3px 12px", fontSize: "0.7rem",
+                    color: f === "applied" ? "var(--green)" : f === "rejected" ? "var(--red)" : f === "shortlisted" ? "var(--cyan)" : "var(--ink-2)" }}
+                >
+                  {f.toUpperCase()}
+                </button>
+              ))}
+            </div>
+            {historyJobs.length === 0 ? (
+              <p className="empty">No jobs in the local DB yet. Run an autopilot scan to populate it.</p>
+            ) : (
+              <div style={{ overflowX: "auto" }}>
+                <table className="table" style={{ width: "100%", fontSize: "0.78rem" }}>
+                  <thead>
+                    <tr>
+                      <th style={{ textAlign: "left" }}>Company</th>
+                      <th style={{ textAlign: "left" }}>Role</th>
+                      <th style={{ textAlign: "right" }}>Score</th>
+                      <th style={{ textAlign: "center" }}>Status</th>
+                      <th style={{ textAlign: "right" }}>Scanned</th>
+                      <th />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {historyJobs.slice(0, 200).map((job) => (
+                      <tr key={job.url}>
+                        <td style={{ fontWeight: 600 }}>{job.company}</td>
+                        <td>{job.title}</td>
+                        <td style={{ textAlign: "right", fontFamily: "var(--mono)" }}>{job.score}</td>
+                        <td style={{ textAlign: "center" }}>
+                          <span className={`chip ${job.status === "applied" ? "chip-green" : job.status === "rejected" ? "chip-red" : job.status === "shortlisted" ? "chip-blue" : ""}`}>
+                            {job.status}
+                          </span>
+                        </td>
+                        <td style={{ textAlign: "right", fontFamily: "var(--mono)", color: "var(--ink-2)", fontSize: "0.72rem" }}>
+                          {new Date(job.scannedAt).toLocaleDateString()}
+                        </td>
+                        <td>
+                          <a href={job.url} target="_blank" rel="noreferrer" style={{ color: "var(--cyan)", fontSize: "0.75rem" }}>View →</a>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {historyJobs.length > 200 && (
+                  <p style={{ fontFamily: "var(--mono)", fontSize: "0.7rem", color: "var(--ink-2)", marginTop: "0.5rem" }}>
+                    Showing 200 of {historyJobs.length} — use filter buttons above to narrow results.
+                  </p>
+                )}
+              </div>
             )}
           </section>
         )}

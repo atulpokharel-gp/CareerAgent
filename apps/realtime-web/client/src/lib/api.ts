@@ -543,3 +543,59 @@ export async function fetchUserData(): Promise<UserData | null> {
     return null;
   }
 }
+
+// ── Persistent job DB (local scan history) ─────────────────────────────────────
+
+export type TrackedJobStatus = "shortlisted" | "applied" | "rejected" | "skipped";
+
+export interface TrackedJob {
+  url: string;
+  company: string;
+  title: string;
+  location: string;
+  score: number;
+  reasons: string[];
+  status: TrackedJobStatus;
+  scannedAt: number;
+  appliedAt?: number;
+}
+
+export interface JobStats {
+  total: number;
+  shortlisted: number;
+  applied: number;
+  rejected: number;
+  skipped: number;
+}
+
+export async function fetchJobStats(): Promise<JobStats> {
+  try {
+    const r = await fetch(`${API_BASE}/api/data/jobs/stats`);
+    if (!r.ok) return { total: 0, shortlisted: 0, applied: 0, rejected: 0, skipped: 0 };
+    return r.json() as Promise<JobStats>;
+  } catch {
+    return { total: 0, shortlisted: 0, applied: 0, rejected: 0, skipped: 0 };
+  }
+}
+
+export async function fetchTrackedJobs(status?: TrackedJobStatus): Promise<TrackedJob[]> {
+  try {
+    const url = status
+      ? `${API_BASE}/api/data/jobs?status=${status}`
+      : `${API_BASE}/api/data/jobs`;
+    const r = await fetch(url);
+    if (!r.ok) return [];
+    const body = await r.json() as { jobs: TrackedJob[] };
+    return body.jobs;
+  } catch {
+    return [];
+  }
+}
+
+export async function updateJobStatus(jobUrl: string, status: TrackedJobStatus): Promise<void> {
+  await fetch(`${API_BASE}/api/data/jobs/${encodeURIComponent(jobUrl)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ status }),
+  });
+}
