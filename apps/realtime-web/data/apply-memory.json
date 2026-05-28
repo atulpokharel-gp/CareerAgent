@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": 1779860301604,
+  "updatedAt": 1779902589463,
   "ats": {
     "ashby": {
       "attempts": 1,
@@ -10,6 +10,16 @@
       "requiredExtraFields": {},
       "fieldMappings": {},
       "lastAttempt": 1779860301604
+    },
+    "greenhouse": {
+      "attempts": 7,
+      "successes": 0,
+      "strategy": "api-direct",
+      "learnedLessons": [],
+      "requiredExtraFields": {},
+      "fieldMappings": {},
+      "lastAttempt": 1779902589463,
+      "lastError": "HTTP 404: <!DOCTYPE html>\n<html lang=\"en\">\n<head prefix=\"og: http://ogp.me/ns#\">\n  <title></title>\n  <meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge,chrome=1\">\n  <meta id=\"viewport\" name=\"viewport\" content =\"width=device-width, minimum-scale=1.0\" />\n  <meta id=\"rendered-by\" content=\"jben\" />\n  <link rel=\""
     }
   },
   "jobs": {
@@ -17,6 +27,41 @@
       "ats": "ashby",
       "status": "unsupported",
       "at": 1779860301604
+    },
+    "https://job-boards.eu.greenhouse.io/parloa/jobs/4799672101": {
+      "ats": "greenhouse",
+      "status": "failed",
+      "at": 1779901278450
+    },
+    "https://job-boards.eu.greenhouse.io/parloa/jobs/4843556101": {
+      "ats": "greenhouse",
+      "status": "failed",
+      "at": 1779902402614
+    },
+    "https://job-boards.eu.greenhouse.io/parloa/jobs/4866271101": {
+      "ats": "greenhouse",
+      "status": "failed",
+      "at": 1779902416310
+    },
+    "https://job-boards.eu.greenhouse.io/parloa/jobs/4604587101": {
+      "ats": "greenhouse",
+      "status": "failed",
+      "at": 1779902423206
+    },
+    "https://job-boards.greenhouse.io/runpod/jobs/5191760008": {
+      "ats": "greenhouse",
+      "status": "failed",
+      "at": 1779902469887
+    },
+    "https://job-boards.greenhouse.io/blackforestlabs/jobs/4132230008": {
+      "ats": "greenhouse",
+      "status": "failed",
+      "at": 1779902587556
+    },
+    "https://job-boards.greenhouse.io/blackforestlabs/jobs/4642947008": {
+      "ats": "greenhouse",
+      "status": "failed",
+      "at": 1779902589463
     }
   }
 }

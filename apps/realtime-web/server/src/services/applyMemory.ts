@@ -54,13 +54,7 @@ export interface ApplyMemory {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-const MEMORY_PATH = path.join(
-  config.repoRoot,
-  "apps",
-  "realtime-web",
-  "data",
-  "apply-memory.json",
-);
+const MEMORY_PATH = path.join(config.dataDir, "apply-memory.json");
 
 function makeDefaultAtsEntry(): AtsKnowledge {
   return {

@@ -20,6 +20,13 @@ try {
   }
 } catch { /* no .env file, use existing env vars */ }
 
+/** True when running inside a Vercel serverless function */
+export const IS_VERCEL = !!process.env.VERCEL;
+
+// On Vercel: /tmp is the only writable directory (ephemeral, 512 MB).
+// Locally:   paths are relative to the monorepo root.
+const _repoRoot = IS_VERCEL ? "/tmp" : path.resolve(__dirname, "../../../../");
+
 export const config = {
   port: Number(process.env.PORT || 8787),
   host: process.env.HOST || "0.0.0.0",
@@ -27,7 +34,20 @@ export const config = {
   sessionTtlMs: Number(process.env.SESSION_TTL_MS || 1000 * 60 * 60 * 6),
   maxSessions: Number(process.env.MAX_SESSIONS || 5000),
   globalConcurrentScans: Number(process.env.GLOBAL_CONCURRENT_SCANS || 20),
-  redisUrl: process.env.REDIS_URL || "redis://127.0.0.1:6379",
+  // Default to memory store; set REDIS_URL (e.g. Upstash) for persistent sessions on Vercel
+  redisUrl: process.env.REDIS_URL || "memory",
   redisKeyPrefix: process.env.REDIS_KEY_PREFIX || "career-ops:realtime",
-  repoRoot: path.resolve(__dirname, "../../../../"),
+  repoRoot: _repoRoot,
+  /** Writable data directory — /tmp/data on Vercel, local data/ otherwise */
+  dataDir: IS_VERCEL
+    ? "/tmp/data"
+    : path.resolve(__dirname, "../../../../apps/realtime-web/data"),
+  /** Writable output directory for generated CVs */
+  outputDir: IS_VERCEL
+    ? "/tmp/output"
+    : path.resolve(__dirname, "../../../../apps/realtime-web/output"),
+  /** Path to pre-loaded CV PDF; null on Vercel (users upload their own) */
+  cvPdfPath: IS_VERCEL
+    ? null
+    : path.resolve(__dirname, "../../../../cv/startup_v4.pdf"),
 };

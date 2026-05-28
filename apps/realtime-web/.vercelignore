@@ -1,0 +1,18 @@
+# Build output
+client/dist
+server/dist
+
+# Runtime data (ephemeral on Vercel — stored in /tmp)
+data/
+output/
+cv/
+
+# Dev tooling
+node_modules
+.env
+*.log
+
+# Workspace files that aren't needed in the deployment
+batch/
+jds/
+fonts/

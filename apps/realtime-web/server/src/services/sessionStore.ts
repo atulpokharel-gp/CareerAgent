@@ -118,6 +118,45 @@ export class SessionStore {
     return session;
   }
 
+  /** Merge new jobs into the session — deduplicates by URL so re-scans accumulate. */
+  async mergeJobs(sessionId: string, newJobs: SessionState["jobs"]): Promise<SessionState | undefined> {
+    const session = await this.get(sessionId);
+    if (!session) return undefined;
+    const existing = new Map(session.jobs.map((j) => [j.url, j]));
+    for (const job of newJobs) {
+      existing.set(job.url, job); // newer data wins
+    }
+    session.jobs = [...existing.values()];
+    await this.touch(session);
+    return session;
+  }
+
+  /** Merge new ranked jobs — deduplicates by URL. */
+  async mergeRankedJobs(sessionId: string, newJobs: SessionState["rankedJobs"]): Promise<SessionState | undefined> {
+    const session = await this.get(sessionId);
+    if (!session) return undefined;
+    const existing = new Map(session.rankedJobs.map((j) => [j.url, j]));
+    for (const job of newJobs) {
+      existing.set(job.url, job);
+    }
+    session.rankedJobs = [...existing.values()].sort((a, b) => b.score - a.score);
+    await this.touch(session);
+    return session;
+  }
+
+  /** Merge new drafts — deduplicates by jobUrl. */
+  async mergeDrafts(sessionId: string, newDrafts: SessionState["drafts"]): Promise<SessionState | undefined> {
+    const session = await this.get(sessionId);
+    if (!session) return undefined;
+    const existing = new Map(session.drafts.map((d) => [d.jobUrl, d]));
+    for (const draft of newDrafts) {
+      existing.set(draft.jobUrl, draft);
+    }
+    session.drafts = [...existing.values()];
+    await this.touch(session);
+    return session;
+  }
+
   async setRankedJobs(sessionId: string, jobs: SessionState["rankedJobs"]): Promise<SessionState | undefined> {
     const session = await this.get(sessionId);
     if (!session) {

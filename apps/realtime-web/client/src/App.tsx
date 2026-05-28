@@ -14,7 +14,7 @@ interface FeedEvent {
   text: string;
 }
 
-type StepStatus = "pending" | "active" | "done";
+type StepStatus = "pending" | "active" | "done" | "running" | "error";
 type StepId = "context" | "scan" | "rank" | "draft" | "done";
 
 interface AgentStep {
@@ -28,6 +28,9 @@ const providers: ProviderName[] = ["openai", "anthropic", "gemini", "openrouter"
 const stepOrder: StepId[] = ["context", "scan", "rank", "draft", "done"];
 const defaultRoles = "AI Engineer, Applied AI, LLM Engineer";
 const defaultLocations = "Remote, India, Singapore";
+
+// Base URL for all API and asset links — empty string on Vercel (same-origin), localhost fallback for dev
+const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8787";
 const phaseHints: Record<Exclude<StepId, "done">, string[]> = {
   context: [
     "Reading the CV and grounding fields to explicit evidence.",
@@ -61,8 +64,18 @@ function makeInitialSteps(): AgentStep[] {
   ];
 }
 
+const SESSION_KEY = "career-ops-sid";
+
+function mergeJobList<T extends { url: string }>(prev: T[], incoming: T[]): T[] {
+  const map = new Map(prev.map((j) => [j.url, j]));
+  for (const j of incoming) map.set(j.url, j); // newer wins
+  return [...map.values()];
+}
+
 export default function App() {
-  const [sessionId, setSessionId] = useState<string>("");
+  const [sessionId, setSessionId] = useState<string>(
+    () => localStorage.getItem(SESSION_KEY) ?? "",
+  );
   const [cv, setCv] = useState("");
   const [skills, setSkills] = useState("");
   const [goals, setGoals] = useState("");
@@ -72,12 +85,13 @@ export default function App() {
   const [apiKey, setApiKey] = useState("");
   const [jobs, setJobs] = useState<JobItem[]>([]);
   const [ranked, setRanked] = useState<RankedJob[]>([]);
+  const [scanRunCount, setScanRunCount] = useState(0); // jobs found in current run
   const [drafts, setDrafts] = useState<DraftApplication[]>([]);
   const [isBusy, setIsBusy] = useState(false);
   const [verify, setVerify] = useState(false);
   const [autonomous, setAutonomous] = useState(true);
-  const [intervalMinutes, setIntervalMinutes] = useState(15);
-  const [maxJobsPerRun, setMaxJobsPerRun] = useState(15);
+  const [intervalMinutes, setIntervalMinutes] = useState(5);
+  const [maxJobsPerRun, setMaxJobsPerRun] = useState(25);
   const [isParsingCv, setIsParsingCv] = useState(false);
   const [isPreloading, setIsPreloading] = useState(false);
   const [preloadDone, setPreloadDone] = useState(false);
@@ -148,7 +162,35 @@ export default function App() {
   };
 
   useEffect(() => {
-    void createSession().then((session) => setSessionId(session.sessionId));
+    let cancelled = false;
+    async function connect(attempt = 0) {
+      try {
+        // Reuse existing session if still valid
+        if (sessionId) {
+          try {
+            const res = await fetch(`${API_BASE}/api/session/${sessionId}`);
+            if (res.ok) {
+              const data = await res.json() as { sessionId: string; jobs?: JobItem[]; rankedJobs?: RankedJob[]; drafts?: DraftApplication[]; applyRecords?: ApplyRecord[] };
+              // Restore state from saved session
+              if (data.rankedJobs?.length) { setRanked(data.rankedJobs); setJobs(data.rankedJobs); }
+              else if (data.jobs?.length) setJobs(data.jobs);
+              if (data.drafts?.length) setDrafts(data.drafts);
+              if (!cancelled) setSessionId(data.sessionId);
+              return;
+            }
+          } catch { /* fall through to create new */ }
+        }
+        const session = await createSession();
+        if (!cancelled) setSessionId(session.sessionId);
+      } catch {
+        if (!cancelled) {
+          const delay = Math.min(2000 * 2 ** attempt, 30000);
+          setTimeout(() => { void connect(attempt + 1); }, delay);
+        }
+      }
+    }
+    void connect();
+    return () => { cancelled = true; };
   }, []);
 
   // Auto-load preloaded CV + API key from the local server on first mount
@@ -207,14 +249,28 @@ export default function App() {
 
     source.addEventListener("scan_done", () => {
       setIsBusy(false);
-      void getJobs(sessionId).then((items) => setJobs(items));
+      void getJobs(sessionId).then((items) => {
+        setJobs((prev) => mergeJobList(prev, items));
+        setScanRunCount(items.length);
+      });
+    });
+
+    source.addEventListener("job_found", (event) => {
+      const messageEvent = event as MessageEvent;
+      const payload = JSON.parse(messageEvent.data) as { job: JobItem };
+      setJobs((prev) => mergeJobList(prev, [payload.job]));
+      setScanRunCount((c) => c + 1);
     });
 
     source.addEventListener("autopilot_ranked", () => {
       void getDrafts(sessionId).then((data) => {
-        setRanked(data.rankedJobs);
-        setDrafts(data.drafts);
-        setJobs(data.rankedJobs);
+        setRanked((prev) => mergeJobList(prev, data.rankedJobs) as RankedJob[]);
+        setDrafts((prev) => {
+          const map = new Map(prev.map((d) => [d.jobUrl, d]));
+          for (const d of data.drafts) map.set(d.jobUrl, d);
+          return [...map.values()];
+        });
+        setJobs((prev) => mergeJobList(prev, data.rankedJobs));
       });
     });
 
@@ -340,7 +396,7 @@ export default function App() {
 
     setSteps(makeInitialSteps());
     setIsBusy(true);
-    setJobs([]);
+    setScanRunCount(0);
 
     let cvToSend = cv;
     let skillsToSend = skills;
@@ -591,24 +647,6 @@ export default function App() {
     }
   }
 
-  // Apply a single job directly (bypasses queue)
-  async function confirmAndApply(jobUrl: string) {
-    if (!sessionId || isApplying) return;
-    const draft = drafts.find((d) => d.jobUrl === jobUrl);
-    if (!draft) return;
-    setIsApplying(true);
-    try {
-      const cvForJob = draftAts[jobUrl]?.optimizedCv ?? cv;
-      const record = await submitApplication(draft, provider, apiKey, cvForJob);
-      setApplyRecords((prev) => [record, ...prev.filter((r) => r.jobUrl !== jobUrl)]);
-      setFeed((prev) => [{ id: crypto.randomUUID(), text: `${draft.company}: ${record.status === "submitted" ? "Applied ✓" : record.message}` }, ...prev].slice(0, 100));
-    } catch (e) {
-      setFeed((prev) => [{ id: crypto.randomUUID(), text: `Apply failed: ${e instanceof Error ? e.message : "Unknown"}` }, ...prev].slice(0, 100));
-    } finally {
-      setIsApplying(false);
-    }
-  }
-
   // Full autonomous workflow: parse → scan → optimize → apply
   async function startFullWorkflow() {
     if (!sessionId || !cv.trim() || apiKey.trim().length < 12) return;
@@ -647,9 +685,31 @@ export default function App() {
           <span className="bracket">]</span>
           <span style={{ opacity: 0.35, fontSize: "0.65rem", fontWeight: 300 }}>v2</span>
         </div>
-        <div className="topbar-status">
-          <div className="status-dot" />
-          {sessionId ? `SESSION ${sessionId.slice(0, 8).toUpperCase()}` : "CONNECTING..."}
+        <div style={{ display: "flex", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}>
+          {/* Stats bar */}
+          {(jobs.length > 0 || drafts.length > 0 || applyRecords.length > 0) && (
+            <div style={{ display: "flex", gap: "0.75rem", fontFamily: "var(--mono)", fontSize: "0.7rem", color: "var(--ink-2)" }}>
+              {jobs.length > 0 && <span style={{ color: "var(--cyan)" }}>{jobs.length} jobs</span>}
+              {drafts.length > 0 && <span style={{ color: "var(--purple)" }}>{drafts.length} drafts</span>}
+              {applyRecords.filter(r => r.status === "submitted").length > 0 && (
+                <span style={{ color: "var(--green)" }}>
+                  {applyRecords.filter(r => r.status === "submitted").length} applied
+                </span>
+              )}
+              {applyRecords.filter(r => r.status === "failed").length > 0 && (
+                <span style={{ color: "var(--red)" }}>
+                  {applyRecords.filter(r => r.status === "failed").length} failed
+                </span>
+              )}
+              {autonomous && isBusy && (
+                <span style={{ color: "var(--amber)", animation: "pulse 1.4s ease-in-out infinite" }}>⚡ AUTOPILOT</span>
+              )}
+            </div>
+          )}
+          <div className="topbar-status">
+            <div className={`status-dot${isBusy ? " status-busy" : ""}`} />
+            {sessionId ? `SESSION ${sessionId.slice(0, 8).toUpperCase()}` : "CONNECTING..."}
+          </div>
         </div>
       </div>
 
@@ -739,15 +799,24 @@ export default function App() {
               <input type="checkbox" checked={autonomous} onChange={(event) => setAutonomous(event.target.checked)} />
               Autonomous mode (scan, rank, and prepare application packets automatically)
             </label>
+            {autonomous && (
+              <div style={{
+                fontFamily: "var(--mono)", fontSize: "0.72rem", padding: "0.5rem 0.75rem",
+                borderLeft: "2px solid var(--amber)", color: "var(--amber)", background: "rgba(255,170,0,0.04)",
+                borderRadius: "0 var(--radius) var(--radius) 0",
+              }}>
+                ⚡ Autopilot will scan every {intervalMinutes}m · max {maxJobsPerRun} jobs/run · results accumulate (no reset)
+              </div>
+            )}
 
             <div className="row">
               <div>
                 <label>Autopilot interval (minutes)</label>
-                <input type="number" min={2} max={240} value={intervalMinutes} onChange={(event) => setIntervalMinutes(Number(event.target.value || 15))} />
+                <input type="number" min={2} max={240} value={intervalMinutes} onChange={(event) => setIntervalMinutes(Number(event.target.value || 5))} />
               </div>
               <div>
                 <label>Max jobs per run</label>
-                <input type="number" min={1} max={100} value={maxJobsPerRun} onChange={(event) => setMaxJobsPerRun(Number(event.target.value || 15))} />
+                <input type="number" min={1} max={100} value={maxJobsPerRun} onChange={(event) => setMaxJobsPerRun(Number(event.target.value || 25))} />
               </div>
             </div>
 
@@ -889,17 +958,53 @@ export default function App() {
         )}
 
         <section className="panel jobs">
-          <h2>Shortlisted Jobs ({jobs.length})</h2>
+          <h2 style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
+            Shortlisted Jobs
+            <span style={{ fontFamily: "var(--mono)", fontSize: "0.75rem", color: "var(--ink-2)", fontWeight: 400 }}>
+              {jobs.length} total
+              {scanRunCount > 0 && ` · +${scanRunCount} this run`}
+            </span>
+            {jobs.length > 0 && (
+              <button
+                type="button"
+                onClick={() => { setJobs([]); setRanked([]); setScanRunCount(0); }}
+                style={{ width: "auto", fontSize: "0.68rem", padding: "2px 10px",
+                  border: "1px solid var(--line)", color: "var(--ink-2)", background: "transparent", marginLeft: "auto" }}
+              >
+                Clear all
+              </button>
+            )}
+          </h2>
           <div className="cards">
-            {jobs.map((job) => (
-              <article key={`${job.url}-${job.title}`}>
-                <p style={{ fontFamily: "var(--mono)", fontSize: "0.72rem", color: "var(--cyan)", textTransform: "uppercase", letterSpacing: "0.08em" }}>{job.company}</p>
-                <h3>{job.title}</h3>
-                <p style={{ fontFamily: "var(--mono)", fontSize: "0.73rem" }}>{job.location}</p>
-                <a href={job.url} target="_blank" rel="noreferrer">Open →</a>
-              </article>
-            ))}
-            {jobs.length === 0 && <p className="empty">No jobs yet — start the agent to stream results here.</p>}
+            {(ranked.length > 0 ? ranked : jobs).map((job) => {
+              const rj = job as RankedJob;
+              const score = rj.score;
+              const reasons = rj.reasons;
+              return (
+                <article key={`${job.url}-${job.title}`}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "0.5rem" }}>
+                    <p style={{ fontFamily: "var(--mono)", fontSize: "0.72rem", color: "var(--cyan)", textTransform: "uppercase", letterSpacing: "0.08em" }}>{job.company}</p>
+                    {score !== undefined && (
+                      <span className={`chip ${score >= 70 ? "chip-green" : score >= 40 ? "chip-amber" : "chip-red"}`}
+                        style={{ fontSize: "0.68rem", flexShrink: 0 }}>
+                        ★ {score}
+                      </span>
+                    )}
+                  </div>
+                  <h3>{job.title}</h3>
+                  <p style={{ fontFamily: "var(--mono)", fontSize: "0.73rem", color: "var(--ink-2)" }}>{job.location}</p>
+                  {reasons?.length > 0 && (
+                    <p style={{ display: "flex", gap: "0.3rem", flexWrap: "wrap", marginTop: "0.25rem" }}>
+                      {reasons.slice(0, 3).map((r, i) => (
+                        <span key={i} style={{ fontFamily: "var(--mono)", fontSize: "0.65rem", color: "var(--green)", opacity: 0.75 }}>#{r.replace(/^[^:]+:\s*/i, "")}</span>
+                      ))}
+                    </p>
+                  )}
+                  <a href={job.url} target="_blank" rel="noreferrer">Open →</a>
+                </article>
+              );
+            })}
+            {jobs.length === 0 && <p className="empty">No jobs yet — start the agent to stream results here. Jobs accumulate across runs.</p>}
           </div>
         </section>
 
@@ -953,7 +1058,7 @@ export default function App() {
                   {draftState?.latexResult && (
                     <div style={{ display: "flex", gap: "0.5rem", fontSize: "0.75rem", flexWrap: "wrap" }}>
                       <a
-                        href={`http://localhost:8787${draftState.latexResult.htmlDownloadUrl}`}
+                        href={`${API_BASE}${draftState.latexResult.htmlDownloadUrl}`}
                         target="_blank"
                         rel="noreferrer"
                         style={{ width: "auto", padding: "2px 10px", display: "inline-block",
@@ -962,7 +1067,7 @@ export default function App() {
                         🖨 Open HTML (Print→PDF)
                       </a>
                       <a
-                        href={`http://localhost:8787${draftState.latexResult.texDownloadUrl}`}
+                        href={`${API_BASE}${draftState.latexResult.texDownloadUrl}`}
                         download
                         style={{ width: "auto", padding: "2px 10px", display: "inline-block",
                           border: "1px solid var(--purple)", color: "var(--purple)", textDecoration: "none", borderRadius: "var(--radius)", fontFamily: "var(--mono)", fontSize: "0.72rem" }}
@@ -1009,22 +1114,27 @@ export default function App() {
                         >
                           {queued ? "✓ Queued" : "Queue"}
                         </button>
-                        {(draftState?.latexResult || atsJobScore !== null) && (
-                          <button
-                            type="button"
-                            disabled={isApplying}
-                            onClick={() => void confirmAndApply(draft.jobUrl)}
-                            style={{ width: "auto", fontSize: "0.7rem", padding: "2px 12px",
-                              border: "1px solid var(--green)", color: "var(--green)", background: "rgba(0,255,136,0.05)", fontWeight: 700 }}
-                          >
-                            {isApplying ? "Applying..." : "Apply Now"}
-                          </button>
-                        )}
+                        <button
+                          type="button"
+                          disabled={isApplying}
+                          onClick={() => void confirmAndApply(draft.jobUrl)}
+                          style={{ width: "auto", fontSize: "0.7rem", padding: "2px 12px",
+                            border: "1px solid var(--green)", color: "var(--green)", background: "rgba(0,255,136,0.05)", fontWeight: 700 }}
+                        >
+                          {isApplying ? "🌐 Browser applying…" : "Apply Now"}
+                        </button>
                       </>
                     )}
                     {applyResult && (
-                      <span className={`chip ${applyResult.status === "submitted" ? "chip-green" : applyResult.status === "unsupported" ? "chip-cyan" : "chip-red"}`}>
-                        {applyResult.status === "submitted" ? "✓ Applied" : applyResult.status === "unsupported" ? "Manual required" : "Apply failed"}
+                      <span
+                        className={`chip ${applyResult.status === "submitted" ? "chip-green" : applyResult.status === "unsupported" ? "chip-cyan" : "chip-red"}`}
+                        title={applyResult.message}
+                      >
+                        {applyResult.status === "submitted"
+                          ? `✓ Applied${applyResult.message.includes("browser") ? " (browser)" : ""}`
+                          : applyResult.status === "unsupported"
+                          ? "↗ Apply manually"
+                          : "✗ Failed — check live feed"}
                       </span>
                     )}
                   </div>
@@ -1100,19 +1210,30 @@ export default function App() {
         {/* Apply Results */}
         {applyRecords.length > 0 && (
           <section className="panel jobs">
-            <h2>Apply Results ({applyRecords.length})</h2>
+            <h2 style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+              Apply Results
+              <span className="chip chip-green">{applyRecords.filter(r => r.status === "submitted").length} ✓</span>
+              {applyRecords.filter(r => r.status === "failed").length > 0 && (
+                <span className="chip chip-red">{applyRecords.filter(r => r.status === "failed").length} ✗</span>
+              )}
+            </h2>
             <div className="cards">
               {applyRecords.map((r) => (
                 <article key={`${r.jobUrl}-${r.submittedAt}`} style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
                   <p style={{ fontFamily: "var(--mono)", fontSize: "0.72rem", color: "var(--cyan)", textTransform: "uppercase", letterSpacing: "0.08em" }}>{r.company}</p>
                   <h3>{r.title}</h3>
-                  <p style={{ fontFamily: "var(--mono)", fontSize: "0.72rem", color: "var(--ink-2)" }}>{r.ats.toUpperCase()} · {new Date(r.submittedAt).toLocaleTimeString()}</p>
-                  <p>
-                    <span className={`chip ${r.status === "submitted" ? "chip-green" : r.status === "unsupported" ? "chip-cyan" : "chip-red"}`}>
-                      {r.status}
-                    </span>
+                  <p style={{ fontFamily: "var(--mono)", fontSize: "0.72rem", color: "var(--ink-2)" }}>
+                    {r.ats.toUpperCase()} · {new Date(r.submittedAt).toLocaleTimeString()}
                   </p>
-                  <p style={{ fontFamily: "var(--mono)", fontSize: "0.72rem", color: "var(--ink-2)" }}>{r.message}</p>
+                  <p style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
+                    <span className={`chip ${r.status === "submitted" ? "chip-green" : r.status === "unsupported" ? "chip-cyan" : "chip-red"}`}>
+                      {r.status === "submitted" ? "✓ applied" : r.status === "unsupported" ? "↗ manual" : "✗ failed"}
+                    </span>
+                    {r.message.includes("browser") && (
+                      <span className="chip chip-purple" style={{ fontSize: "0.65rem" }}>🌐 browser</span>
+                    )}
+                  </p>
+                  <p style={{ fontFamily: "var(--mono)", fontSize: "0.72rem", color: "var(--ink-2)", wordBreak: "break-word" }}>{r.message.slice(0, 160)}{r.message.length > 160 ? "…" : ""}</p>
                   {r.status !== "submitted" && (
                     <a href={r.jobUrl} target="_blank" rel="noreferrer" style={{ fontFamily: "var(--mono)", fontSize: "0.75rem", color: "var(--cyan)" }}>apply manually →</a>
                   )}
@@ -1383,14 +1504,14 @@ export default function App() {
                           Load CV
                         </button>
                         {ver.htmlUrl && (
-                          <a href={`http://localhost:8787${ver.htmlUrl}`} target="_blank" rel="noreferrer"
+                          <a href={`${API_BASE}${ver.htmlUrl}`} target="_blank" rel="noreferrer"
                             style={{ width: "auto", fontSize: "0.7rem", padding: "2px 10px", display: "inline-block",
                               border: "1px solid var(--green)", color: "var(--green)", textDecoration: "none", borderRadius: "var(--radius)" }}>
                             HTML
                           </a>
                         )}
                         {ver.latexUrl && (
-                          <a href={`http://localhost:8787${ver.latexUrl}`} download
+                          <a href={`${API_BASE}${ver.latexUrl}`} download
                             style={{ width: "auto", fontSize: "0.7rem", padding: "2px 10px", display: "inline-block",
                               border: "1px solid var(--purple)", color: "var(--purple)", textDecoration: "none", borderRadius: "var(--radius)" }}>
                             .tex

@@ -6,8 +6,8 @@ import { config } from "../config.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// Absolute path to the cv/ folder at the repo root
-const CV_PATH = path.join(config.repoRoot, "cv", "startup_v4.pdf");
+// Absolute path to the pre-loaded CV PDF (null on Vercel — users upload their own)
+const CV_PATH = config.cvPdfPath;
 
 export async function registerLocalRoutes(app: FastifyInstance): Promise<void> {
   /**
@@ -18,8 +18,10 @@ export async function registerLocalRoutes(app: FastifyInstance): Promise<void> {
     const apiKey = process.env.OPENAI_API_KEY ?? "";
     let hasCv = false;
     try {
-      await fs.access(CV_PATH);
-      hasCv = true;
+      if (CV_PATH) {
+        await fs.access(CV_PATH);
+        hasCv = true;
+      }
     } catch { /* file not found */ }
 
     return reply.send({
@@ -33,8 +35,7 @@ export async function registerLocalRoutes(app: FastifyInstance): Promise<void> {
    * Streams the preloaded CV PDF from the repo's cv/ folder.
    * The browser-side pdf.js parser will extract the text.
    */
-  app.get("/api/local/cv", async (_request, reply) => {
-    try {
+  app.get("/api/local/cv", async (_request, reply) => {    if (!CV_PATH) return reply.code(404).send({ message: "No preloaded CV in this environment — upload your own." });    try {
       const buf = await fs.readFile(CV_PATH);
       return reply
         .header("Content-Disposition", "inline; filename=\"startup_v4.pdf\"")
@@ -49,7 +50,7 @@ export async function registerLocalRoutes(app: FastifyInstance): Promise<void> {
    * Serve generated output files (LaTeX, HTML CVs).
    * Files are written to apps/realtime-web/output/ by cvLatexGenerator.
    */
-  const OUTPUT_DIR = path.join(config.repoRoot, "apps", "realtime-web", "output");
+  const OUTPUT_DIR = config.outputDir;
 
   app.get("/api/output/:filename", async (request, reply) => {
     const { filename } = request.params as { filename: string };

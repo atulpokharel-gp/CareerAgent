@@ -23,7 +23,7 @@ export interface LatexCvResult {
   latexContent: string;
 }
 
-const OUTPUT_DIR = path.join(config.repoRoot, "apps", "realtime-web", "output");
+const OUTPUT_DIR = config.outputDir;
 
 // ── LLM helpers ───────────────────────────────────────────────────────────────
 

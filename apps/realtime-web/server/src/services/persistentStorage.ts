@@ -48,7 +48,7 @@ const EMPTY: UserData = {
   chatHistory: [],
 };
 
-const DATA_PATH = path.join(config.repoRoot, "apps", "realtime-web", "data", "user-data.json");
+const DATA_PATH = path.join(config.dataDir, "user-data.json");
 
 async function ensure(): Promise<void> {
   await fs.mkdir(path.dirname(DATA_PATH), { recursive: true });

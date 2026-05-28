@@ -26,8 +26,8 @@ const runScanSchema = z.object({
 
 const automationSchema = z.object({
   enabled: z.boolean().default(true),
-  intervalMinutes: z.number().int().min(2).max(240).default(15),
-  maxJobsPerRun: z.number().int().min(1).max(100).default(15),
+  intervalMinutes: z.number().int().min(2).max(240).default(5),
+  maxJobsPerRun: z.number().int().min(1).max(100).default(25),
   autoApplyRequested: z.boolean().default(false),
 });
 
@@ -80,10 +80,10 @@ export async function registerSessionRoutes(app: FastifyInstance): Promise<void>
     });
 
     emitPhase(sessionId, "rank", "Ranking jobs against profile");
-    await app.sessionStore.setRankedJobs(sessionId, result.ranked);
+    await app.sessionStore.mergeRankedJobs(sessionId, result.ranked);
     emitPhase(sessionId, "draft", "Preparing application drafts");
-    await app.sessionStore.setDrafts(sessionId, result.drafts);
-    await app.sessionStore.setJobs(sessionId, result.ranked);
+    await app.sessionStore.mergeDrafts(sessionId, result.drafts);
+    await app.sessionStore.mergeJobs(sessionId, result.ranked);
     emitPhase(sessionId, "done", "Autonomous cycle completed");
   };
 

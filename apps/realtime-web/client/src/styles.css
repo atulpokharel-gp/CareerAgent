@@ -141,6 +141,11 @@ body::before {
   box-shadow: 0 0 8px var(--green);
   animation: pulse-dot 2s ease-in-out infinite;
 }
+.status-dot.status-busy {
+  background: var(--amber);
+  box-shadow: 0 0 10px var(--amber);
+  animation: pulse-dot 0.6s ease-in-out infinite;
+}
 
 @keyframes pulse-dot {
   0%, 100% { opacity: 1; }

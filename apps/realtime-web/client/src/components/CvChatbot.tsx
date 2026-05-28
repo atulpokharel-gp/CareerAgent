@@ -22,7 +22,7 @@ interface Props {
   onCvUpdated: (newCv: string) => void;
 }
 
-const BASE = "http://localhost:8787";
+const BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8787";
 
 export function CvChatbot({ cv, provider, apiKey, sessionId, onCvUpdated }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);

@@ -3,6 +3,7 @@ import path from "node:path";
 import PQueue from "p-queue";
 import type { FastifyBaseLogger } from "fastify";
 import type { JobItem, SessionEvent } from "../types.js";
+import { IS_VERCEL } from "../config.js";
 
 const OFFER_LINE = /^\s*\+\s+([^|]+)\|\s*([^|]+)\|\s*([^|]+)\|\s*(https?:\/\/\S+)\s*$/;
 
@@ -20,6 +21,17 @@ export class ScanRunner {
     logger: FastifyBaseLogger;
   }): Promise<JobItem[]> {
     return this.queue.add(async () => {
+      // Portal scanning spawns a child process (node scan.mjs) which is not available
+      // in a Vercel serverless environment. Return an empty result with an info message.
+      if (IS_VERCEL) {
+        options.onEvent({
+          type: "status",
+          message: "Portal scanning is not available in the hosted environment. Clone the repo locally to run full scans.",
+          at: Date.now(),
+        });
+        return [];
+      }
+
       const args = ["scan.mjs", "--dry-run"];
       if (options.verify) {
         args.push("--verify");

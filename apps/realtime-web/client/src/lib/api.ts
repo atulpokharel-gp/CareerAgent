@@ -35,7 +35,11 @@ export interface ParsedCvProfile {
   summary: string;
 }
 
-const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8787";
+// On Vercel, VITE_API_BASE should be set to "" (empty string) — all /api/* requests are
+// handled by the same-origin serverless function.  Locally, the dev proxy forwards /api/*
+// to the Fastify server, so we can also leave VITE_API_BASE="" in .env.local.
+// The fallback "http://localhost:8787" is kept for backwards-compatibility when no .env is set.
+const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8787";
 
 export async function createSession(): Promise<SessionCreated> {
   const response = await fetch(`${API_BASE}/api/session`, {

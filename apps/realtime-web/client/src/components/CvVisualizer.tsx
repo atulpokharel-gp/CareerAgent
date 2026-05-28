@@ -1,17 +1,11 @@
-/**
- * CvVisualizer — AI-themed SVG visualization of CV skills + stats
- * Shows: skill radar chart, experience stats, keyword density heatmap
- */
+import { useState, useRef, useEffect } from "react";
+import type { CvTimeline } from "../lib/api";
 
 interface CvVisualizerProps {
   cv: string;
   skills: string;
   atsScore: number | null;
-  timeline?: {
-    totalYearsExperience: number;
-    experience: { company: string; title: string; startYear: number; endYear: number | null }[];
-    education: { institution: string; degree: string; startYear: number; endYear: number | null }[];
-  } | null;
+  timeline?: CvTimeline | null;
 }
 
 // ── Parse skills from CV text ──────────────────────────────────────────────
@@ -23,8 +17,14 @@ const TECH_KEYWORDS = [
   "Rust", "Go", "Java", "C++", "SQL", "Git", "CI/CD", "Terraform",
 ];
 
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 function countKeyword(text: string, kw: string): number {
-  const re = new RegExp(`\\b${kw}\\b`, "gi");
+  // Use simple includes for keywords with special regex chars (C++, C#, etc.)
+  const escaped = escapeRegex(kw);
+  const re = new RegExp(`(?<![\\w])${escaped}(?![\\w])`, "gi");
   return (text.match(re) ?? []).length;
 }
 

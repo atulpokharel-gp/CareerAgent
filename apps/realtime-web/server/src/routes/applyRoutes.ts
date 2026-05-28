@@ -1,8 +1,32 @@
 import { z } from "zod";
 import type { FastifyInstance } from "fastify";
 import { AutoApplyService } from "../services/autoApplyService.js";
+import { browserApplyService } from "../services/browserApplyService.js";
+import { IS_VERCEL } from "../config.js";
 
 const autoApplyService = new AutoApplyService();
+
+/**
+ * Apply strategy: try browser automation first (works universally), fall back
+ * to direct ATS API only if browser fails or is unavailable (Vercel).
+ */
+async function applyWithBestStrategy(
+  draft: Parameters<AutoApplyService["submitApplication"]>[0],
+  cvText: string,
+  providerKey: Parameters<AutoApplyService["submitApplication"]>[2],
+  emitStatus: (msg: string) => void,
+): Promise<ReturnType<AutoApplyService["submitApplication"]>> {
+  // Browser automation — works for ANY ATS portal
+  if (!IS_VERCEL) {
+    const result = await browserApplyService.applyWithBrowser(draft, cvText, providerKey, emitStatus);
+    // If browser succeeded or gave a meaningful failure, return it
+    if (result.status === "submitted") return result;
+    // If the failure is not a "browser unavailable" issue, still return it
+    if (!result.message.includes("not available in the hosted environment")) return result;
+  }
+  // Fallback: direct ATS API (Greenhouse / Lever / Ashby)
+  return autoApplyService.submitApplication(draft, cvText, providerKey);
+}
 
 const submitSchema = z.object({
   jobUrl: z.string().url().max(2048),
@@ -48,7 +72,12 @@ export async function registerApplyRoutes(app: FastifyInstance): Promise<void> {
     }
 
     const providerKey = session.context?.providers?.[0];
-    const record = await autoApplyService.submitApplication(draft, session.context.cv, providerKey);
+    const record = await applyWithBestStrategy(
+      draft,
+      session.context.cv,
+      providerKey,
+      (msg) => void app.sessionStore.emit(sessionId, { type: "status", message: msg, at: Date.now() }),
+    );
 
     await app.sessionStore.addApplyRecord(sessionId, record);
 
@@ -93,7 +122,12 @@ export async function registerApplyRoutes(app: FastifyInstance): Promise<void> {
       if (alreadyDone) continue;
 
       const bulkProviderKey = session.context?.providers?.[0];
-      const record = await autoApplyService.submitApplication(draft, session.context.cv, bulkProviderKey);
+      const record = await applyWithBestStrategy(
+        draft,
+        session.context.cv,
+        bulkProviderKey,
+        (msg) => void app.sessionStore.emit(sessionId, { type: "status", message: msg, at: Date.now() }),
+      );
       await app.sessionStore.addApplyRecord(sessionId, record);
       records.push(record);
 

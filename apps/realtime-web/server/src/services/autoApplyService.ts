@@ -212,17 +212,19 @@ async function submitAshby(
 // ── Resume path resolver ──────────────────────────────────────────────────────
 
 async function resolveResumePath(): Promise<string | null> {
+  // On Vercel there is no local CV file — applications require manual resume upload
+  if (config.cvPdfPath === null) return null;
   const candidates = [
-    path.join(config.repoRoot, "cv", "startup_v4.pdf"),
-    path.join(config.repoRoot, "cv", "resume.pdf"),
+    config.cvPdfPath,
+    path.join(path.dirname(config.cvPdfPath), "resume.pdf"),
   ];
   for (const p of candidates) {
     try { await fs.access(p); return p; } catch { /* not found */ }
   }
   try {
-    const files = await fs.readdir(path.join(config.repoRoot, "cv"));
+    const files = await fs.readdir(path.dirname(config.cvPdfPath));
     const pdf = files.find((f) => f.endsWith(".pdf"));
-    if (pdf) return path.join(config.repoRoot, "cv", pdf);
+    if (pdf) return path.join(path.dirname(config.cvPdfPath), pdf);
   } catch { /* no cv dir */ }
   return null;
 }
@@ -314,4 +316,20 @@ export class AutoApplyService {
     await applyMemory.recordUnsupported(draft.jobUrl, "unknown");
     return mk("unsupported", "No auto-apply API for this board. Click 'Apply manually' to open the listing.");
   }
+}
+
+// ── Singleton + standalone helper ────────────────────────────────────────────
+
+export const autoApplyService = new AutoApplyService();
+
+/**
+ * Standalone wrapper so workflowService can import this directly.
+ * Parameter order: (draft, providerKey, cvText)
+ */
+export function submitApplication(
+  draft: DraftApplication,
+  providerKey: ProviderKey,
+  cvText: string,
+): Promise<ApplyRecord> {
+  return autoApplyService.submitApplication(draft, cvText, providerKey);
 }
