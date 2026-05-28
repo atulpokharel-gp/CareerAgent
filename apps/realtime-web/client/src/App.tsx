@@ -596,11 +596,12 @@ export default function App() {
   }
 
   // Auto-fill roles, locations, skills, goals from CV as soon as apiKey is ready.
-  // Uses a ref key so it only fires once per unique CV text — no re-runs on every keystroke.
+  // The ref key tracks which CV+provider pair was last parsed to avoid re-runs on keystrokes.
   useEffect(() => {
     if (!sessionId || cv.trim().length < 100 || apiKey.trim().length < 12) return;
-    if (cvAutoFillKey.current === cv) return; // already ran for this CV
-    cvAutoFillKey.current = cv;
+    const parseKey = `${cv}::${provider}`;
+    if (cvAutoFillKey.current === parseKey) return; // already ran for this CV+provider
+    cvAutoFillKey.current = parseKey;
 
     void parseCvWithLlm(sessionId, { provider, apiKey, cvText: cv })
       .then((parsed) => {
@@ -610,11 +611,19 @@ export default function App() {
         if (parsed.locations.length > 0) setLocations(parsed.locations.join(", "));
         if (parsed.skills.length > 0) setSkills(parsed.skills.join(", "));
         if (parsed.goals.trim().length > 0 && goals.trim().length < 2) setGoals(parsed.goals);
-        setFeed((prev) => [{ id: crypto.randomUUID(), text: `CV auto-analysed · ${parsed.preferredRoles.slice(0,2).join(", ")} · ${parsed.locations.slice(0,2).join(", ")}` }, ...prev].slice(0, 100));
+        const roleHint = parsed.preferredRoles.length > 0
+          ? parsed.preferredRoles.slice(0, 3).join(", ")
+          : "no roles extracted — check CV has job titles";
+        setFeed((prev) => [{ id: crypto.randomUUID(), text: `CV parsed · Roles: ${roleHint}` }, ...prev].slice(0, 100));
       })
-      .catch(() => { /* non-blocking */ });
+      .catch((err: unknown) => {
+        // Reset key so user can retry after fixing their API key
+        cvAutoFillKey.current = "";
+        const msg = err instanceof Error ? err.message : String(err);
+        setFeed((prev) => [{ id: crypto.randomUUID(), text: `CV auto-parse failed: ${msg}` }, ...prev].slice(0, 100));
+      });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cv, apiKey, sessionId]);
+  }, [cv, apiKey, sessionId, provider]);
 
   // Auto-generate career goals + parse timeline whenever CV + API key are ready
   useEffect(() => {

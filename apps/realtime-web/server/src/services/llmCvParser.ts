@@ -69,7 +69,9 @@ function extractJsonObject(text: string): ParsedCvProfile {
   return {
     cleanedCv,
     skills: Array.isArray(parsed.skills) ? dedupeList(parsed.skills.map(String).slice(0, 40), cleanedCv, true) : [],
-    preferredRoles: Array.isArray(parsed.preferredRoles) ? dedupeList(parsed.preferredRoles.map(String).slice(0, 20), cleanedCv, true) : [],
+    // preferredRoles: no strict grounding — roles may be inferred from job history
+    // and might not appear as exact substrings (e.g. "ML Engineer" vs "Machine Learning Engineer").
+    preferredRoles: Array.isArray(parsed.preferredRoles) ? dedupeList(parsed.preferredRoles.map(String).slice(0, 20), cleanedCv, false) : [],
     locations: Array.isArray(parsed.locations) ? dedupeList(parsed.locations.map(String).slice(0, 20), cleanedCv, true) : [],
     goals: typeof parsed.goals === "string" ? sanitizeGoals(parsed.goals, cleanedCv) : "",
     summary: typeof parsed.summary === "string" ? sanitizeSummary(parsed.summary) : "",
@@ -95,7 +97,12 @@ function buildPrompt(cvText: string): string {
     "- Never invent, guess, infer, extrapolate, or add likely preferences.",
     "- If a field is not clearly present in the CV, return an empty string or empty array for that field.",
     "- skills should be concise, deduplicated, and explicitly present in the CV.",
-    "- preferredRoles should only contain role titles explicitly present in the CV.",
+    "- preferredRoles: extract EVERY distinct job title this person has held, listed in their CV, or",
+    "  mentioned in their objective/summary section. Also include generalised role types clearly",
+    "  implied by their career trajectory (e.g. if all jobs are 'Machine Learning Engineer', include",
+    "  that title). Return SHORT canonical titles like 'Machine Learning Engineer', 'Data Scientist',",
+    "  'Backend Engineer' — not full sentences. Aim for 3-8 roles. Never return an empty array if",
+    "  the CV contains any job titles or experience descriptions.",
     "- locations should only contain locations or remote preferences explicitly present in the CV.",
     "- goals should only be filled if the CV explicitly states a goal/objective/profile target.",
     "- summary should be a 2-3 line executive profile summary.",
