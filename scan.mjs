@@ -375,37 +375,55 @@ function guardStatusFor(code) {
 }
 
 /**
- * Expand a list of role titles (e.g. ["Machine Learning Engineer", "Data Scientist"]) into
- * a broader set of title-filter keywords so the scanner can find the full range of matching
- * job postings without being limited to exact phrase matches.
+ * Expand a list of role titles into a set of title-filter keywords for scan.mjs.
  *
  * Strategy:
- *   1. Keep each full role as-is (longest/most-specific keyword wins in the filter).
- *   2. Extract every consecutive 2-word slice from roles with 3+ words.
- *   3. Keep single words that are ≥ 4 characters AND not generic stop words.
+ *   1. Always keep each full role phrase (most specific).
+ *   2. Add bigrams that contain at least one domain-specific word (not generic
+ *      level words like 'engineer', 'manager', 'developer').
+ *   3. Add single words ONLY if they are domain-specific (≥5 chars and not in
+ *      the generic set) — this prevents 'engineer' from matching every job.
  *
- * Deduplication is applied at the end to keep the list small.
+ * Example: "Robotics Engineer" → ["robotics engineer", "robotics"]
+ *          "Machine Learning Engineer" → ["machine learning engineer", "machine learning", "machine"]
+ *          NOT: "engineer", "developer", "manager" (too broad)
  */
 function expandRoleKeywords(roles) {
-  const STOP = new Set(['and', 'the', 'for', 'with', 'that', 'this', 'lead', 'head',
-    'staff', 'principal', 'senior', 'junior', 'intern', 'manager']);
+  // Words that describe seniority or generic function — not domain signals.
+  // These are too broad to be useful as standalone title keywords.
+  const GENERIC = new Set([
+    'engineer', 'developer', 'manager', 'lead', 'head', 'director', 'staff',
+    'principal', 'senior', 'junior', 'intern', 'associate', 'specialist',
+    'analyst', 'architect', 'consultant', 'expert', 'officer', 'coordinator',
+    'administrator', 'technician', 'researcher', 'scientist', 'professional',
+    'individual', 'member', 'person', 'team',
+  ]);
 
   const out = new Set();
   for (const role of roles) {
     const trimmed = role.trim();
     if (!trimmed) continue;
-    // Full role title — most specific
+    // Full role phrase — always included, most precise
     out.add(trimmed.toLowerCase());
+
     const words = trimmed.split(/\s+/);
-    // 2-word bigrams
+    if (words.length < 2) continue;
+
+    // Bigrams: include only if at least one word is domain-specific
     for (let i = 0; i < words.length - 1; i++) {
-      const bigram = `${words[i]} ${words[i + 1]}`.toLowerCase();
-      if (bigram.length >= 4) out.add(bigram);
+      const w1 = words[i].toLowerCase().replace(/[^a-z0-9+#]/g, '');
+      const w2 = words[i + 1].toLowerCase().replace(/[^a-z0-9+#]/g, '');
+      const w1Specific = w1.length >= 3 && !GENERIC.has(w1);
+      const w2Specific = w2.length >= 3 && !GENERIC.has(w2);
+      if (w1Specific || w2Specific) {
+        out.add(`${words[i]} ${words[i + 1]}`.toLowerCase());
+      }
     }
-    // Significant single words
+
+    // Single words: only domain-specific terms (not seniority or function words)
     for (const word of words) {
       const w = word.toLowerCase().replace(/[^a-z0-9+#]/g, '');
-      if (w.length >= 4 && !STOP.has(w)) out.add(w);
+      if (w.length >= 5 && !GENERIC.has(w)) out.add(w);
     }
   }
   return [...out];

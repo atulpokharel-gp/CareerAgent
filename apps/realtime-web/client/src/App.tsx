@@ -418,8 +418,10 @@ export default function App() {
     let locationsToSend = locations;
 
     try {
-      if (skills.trim().length < 2 || goals.trim().length < 2) {
-        setFeed((prev) => [{ id: crypto.randomUUID(), text: "Skills or goals missing, parsing CV automatically before start..." }, ...prev].slice(0, 100));
+      // Always parse the CV before running so roles/skills/locations come from
+      // the actual uploaded CV, not stale state or a failed previous parse.
+      if (skills.trim().length < 2 || goals.trim().length < 2 || roles.trim().length < 2) {
+        setFeed((prev) => [{ id: crypto.randomUUID(), text: "Parsing CV to extract roles, skills and goals..." }, ...prev].slice(0, 100));
         const parsed = await parseAndApplyCvAutofill();
         if (parsed.cleanedCv.trim().length > 0) cvToSend = parsed.cleanedCv;
         if (parsed.skills.length > 0) skillsToSend = parsed.skills.join(", ");
