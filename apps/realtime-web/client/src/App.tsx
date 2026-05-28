@@ -26,8 +26,6 @@ interface AgentStep {
 
 const providers: ProviderName[] = ["openai", "anthropic", "gemini", "openrouter"];
 const stepOrder: StepId[] = ["context", "scan", "rank", "draft", "done"];
-const defaultRoles = "AI Engineer, Applied AI, LLM Engineer";
-const defaultLocations = "Remote, India, Singapore";
 
 // Base URL for all API and asset links — empty string on Vercel (same-origin), localhost fallback for dev
 const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8787";
@@ -77,10 +75,10 @@ export default function App() {
     () => localStorage.getItem(SESSION_KEY) ?? "",
   );
   const [cv, setCv] = useState("");
-  const [skills, setSkills] = useState("");
+  const [skills, setSkills] = useState("");   // filled from CV on parse
   const [goals, setGoals] = useState("");
-  const [roles, setRoles] = useState("AI Engineer, Applied AI, LLM Engineer");
-  const [locations, setLocations] = useState("Remote, India, Singapore");
+  const [roles, setRoles] = useState("");      // filled from CV on parse
+  const [locations, setLocations] = useState(""); // filled from CV on parse
   const [provider, setProvider] = useState<ProviderName>("openai");
   const [apiKey, setApiKey] = useState("");
   const [jobs, setJobs] = useState<JobItem[]>([]);
@@ -396,10 +394,11 @@ export default function App() {
     });
 
     if (parsed.cleanedCv.trim().length > 0) setCv(parsed.cleanedCv);
-    if (parsed.skills.length > 0 && skills.trim().length < 2) setSkills(parsed.skills.join(", "));
+    // Always overwrite from CV — the CV is the source of truth for these fields
+    if (parsed.skills.length > 0) setSkills(parsed.skills.join(", "));
     if (parsed.goals.trim().length > 0 && goals.trim().length < 2) setGoals(parsed.goals);
-    if (parsed.preferredRoles.length > 0 && (roles.trim().length === 0 || roles === defaultRoles)) setRoles(parsed.preferredRoles.join(", "));
-    if (parsed.locations.length > 0 && (locations.trim().length === 0 || locations === defaultLocations)) setLocations(parsed.locations.join(", "));
+    if (parsed.preferredRoles.length > 0) setRoles(parsed.preferredRoles.join(", "));
+    if (parsed.locations.length > 0) setLocations(parsed.locations.join(", "));
 
     setFeed((prev) => [{ id: crypto.randomUUID(), text: `CV parsed with ${provider}. ${parsed.summary}` }, ...prev].slice(0, 100));
     return parsed;
@@ -605,11 +604,11 @@ export default function App() {
 
     void parseCvWithLlm(sessionId, { provider, apiKey, cvText: cv })
       .then((parsed) => {
-        // Always overwrite with CV-extracted values (they are the source of truth).
-        // The user can still edit the fields manually afterwards.
+        // Always overwrite — CV is the source of truth for roles, skills, and locations.
+        // User can still edit the fields after auto-fill.
         if (parsed.preferredRoles.length > 0) setRoles(parsed.preferredRoles.join(", "));
         if (parsed.locations.length > 0) setLocations(parsed.locations.join(", "));
-        if (parsed.skills.length > 0 && skills.trim().length < 2) setSkills(parsed.skills.join(", "));
+        if (parsed.skills.length > 0) setSkills(parsed.skills.join(", "));
         if (parsed.goals.trim().length > 0 && goals.trim().length < 2) setGoals(parsed.goals);
         setFeed((prev) => [{ id: crypto.randomUUID(), text: `CV auto-analysed · ${parsed.preferredRoles.slice(0,2).join(", ")} · ${parsed.locations.slice(0,2).join(", ")}` }, ...prev].slice(0, 100));
       })
@@ -814,20 +813,20 @@ export default function App() {
             <label>Upload CV file (.pdf/.txt/.md/.csv/.log)</label>
             <input type="file" accept=".pdf,.txt,.md,.csv,.log,.text,application/pdf" onChange={(event) => void onUploadCv(event)} />
 
-            <label>Core Skills</label>
-            <textarea value={skills} onChange={(event) => setSkills(event.target.value)} placeholder="Agents, Python, LangGraph, GTM AI systems..." />
+            <label>Core Skills <span style={{ fontFamily: "var(--mono)", fontSize: "0.68rem", color: "var(--cyan)", fontWeight: 400 }}>{skills ? "" : "(auto-filled from CV when API key is ready)"}</span></label>
+            <textarea value={skills} onChange={(event) => setSkills(event.target.value)} placeholder="Auto-extracted from CV — paste your CV and add an API key above..." />
 
             <label>Career Goals</label>
             <textarea value={goals} onChange={(event) => setGoals(event.target.value)} placeholder="I want a senior applied AI role in a product company..." />
 
             <div className="row">
               <div>
-                <label>Preferred Roles (comma-separated)</label>
-                <input value={roles} onChange={(event) => setRoles(event.target.value)} />
+                <label>Preferred Roles <span style={{ fontFamily: "var(--mono)", fontSize: "0.68rem", color: "var(--purple)", fontWeight: 400 }}>{roles ? "" : "(auto-filled from CV)"}</span></label>
+                <input value={roles} onChange={(event) => setRoles(event.target.value)} placeholder="Auto-extracted from CV..." />
               </div>
               <div>
-                <label>Locations (comma-separated)</label>
-                <input value={locations} onChange={(event) => setLocations(event.target.value)} />
+                <label>Locations <span style={{ fontFamily: "var(--mono)", fontSize: "0.68rem", color: "var(--cyan)", fontWeight: 400 }}>{locations ? "" : "(auto-filled from CV)"}</span></label>
+                <input value={locations} onChange={(event) => setLocations(event.target.value)} placeholder="Auto-extracted from CV..." />
               </div>
             </div>
 
