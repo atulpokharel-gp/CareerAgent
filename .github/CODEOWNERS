@@ -35,13 +35,6 @@
 /OPENCODE.md           @santifer
 /GEMINI.md             @santifer
 /KIMI.md               @santifer
-# Reference AGENTS.md hands off to (#6693): the same contract, read on demand.
-/modes/_community-asks.md   @santifer
-/modes/_files.md            @santifer
-/modes/_headless.md         @santifer
-/modes/_markets.md          @santifer
-/modes/_onboarding.md       @santifer
-/modes/_tracker-tsv.md      @santifer
 # The skill router. Every CLI's skill entrypoint (.claude/, .cursor/,
 # .opencode/, .qwen/, .kimi/, .grok/, .antigravitycli/) is a symlink to this
 # one file, so an edit here changes only this path — the symlinks never show
@@ -72,14 +65,6 @@
 /plugins/_registry.mjs         @santifer
 /.github/workflows/            @santifer
 /docs/PLUGIN_REVIEW.md         @santifer
-
-# Employer registry: community data kept in the repository (the updater does
-# not ship it to installs), plus the gate that judges it. CI runs the base
-# branch's copy of the validator (and of the URL builder it imports), so a
-# change to either needs an owner's review.
-/employers/                    @santifer
-/seeds/employers-validate.mjs  @santifer
-/lib/ats-board-url.mjs         @santifer
 
 # The experimental web UI — owned by the web track (dual-track review with the
 # core maintainer on any PR that also touches root files).

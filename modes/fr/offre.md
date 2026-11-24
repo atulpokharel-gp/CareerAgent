@@ -235,7 +235,7 @@ Les libelles de l'en-tete (`**Date:**`, `**URL:**`, `**Archetype:**`, `**Score:*
 ## Score Evidence
 (cinq dimensions, statut de la preuve, questions ouvertes, Evidence confidence, priorites)
 
-## H) Brouillons de reponses pour la candidature (draft)
+## H) Brouillons de reponses pour la candidature
 (uniquement si score >= 4.5 -- brouillons de reponses pour le formulaire de candidature)
 
 ---
@@ -244,7 +244,7 @@ Les libelles de l'en-tete (`**Date:**`, `**URL:**`, `**Archetype:**`, `**Score:*
 (liste de 15-20 mots-cles de l'offre pour l'optimisation ATS)
 
 ## Keyword Coverage
-(genere par `keyword-match.mjs` (1b) -- couverture en %, present, missing)
+(genere par `keyword-match.mjs` (1b) -- couverture en %, present, thin, missing)
 
 ## Job Description (archived verbatim)
 (le texte complet de l'offre, colle mot pour mot -- voir l'exigence ci-dessous)

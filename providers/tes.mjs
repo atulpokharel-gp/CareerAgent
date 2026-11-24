@@ -2,7 +2,6 @@
 /** @typedef {import('./_types.js').Provider} Provider */
 
 import { closesAtIso } from '../lib/posting-close.mjs';
-import { hasControlChar } from './_config-utils.mjs';
 import { decodeEntities } from './_html-entities.mjs';
 import { fetchJsonWithRetry, sleep } from './_http.mjs';
 
@@ -53,6 +52,9 @@ const MAX_PAGES_CAP = 400;
 const PAGE_DELAY_MS = 250;
 const MAX_KEYWORDS_LENGTH = 100;
 const VACANCY_PATH_RE = /^\/jobs\/vacancy\/[a-z0-9][a-z0-9-]*-\d+$/;
+
+/** @param {string} text */
+const hasControlChar = (text) => [...text].some((c) => c < ' ' || c === '\u007f');
 
 /**
  * The entry's optional `keywords`, validated. Exported for unit tests.

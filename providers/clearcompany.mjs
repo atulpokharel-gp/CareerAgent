@@ -227,12 +227,9 @@ export default {
       lastRawKey = parsed.rawKey;
     }
     // Ran out of page budget on a full page with more postings still counted.
-    // Never during a probe: on a max_pages: 1 entry the probe's one page is
-    // also the entry's last, so page === maxPages alone cannot tell them apart
-    // (#7180).
     if (
       stopReason === 'complete' && page === maxPages && lastRawCount > 0 &&
-      (total !== null ? seenRaw < total : true) && !probing
+      (total !== null ? seenRaw < total : true)
     ) {
       stopReason = 'cap';
     }

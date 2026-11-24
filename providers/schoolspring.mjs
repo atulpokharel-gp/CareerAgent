@@ -3,7 +3,6 @@
 
 import { decodeEntities } from './_html-entities.mjs';
 import { fetchJsonWithRetry, sleep } from './_http.mjs';
-import { markTruncated } from '../lib/board-truncation.mjs';
 
 // SchoolSpring provider — K-12 districts hosted at `<district>.schoolspring.com`.
 // tracked_companies: (one entry = one district). Auto-detects from careers_url.
@@ -128,15 +127,10 @@ export default {
         break;
       }
     }
-    // Warn only when OUR ceiling cut a board that had more, never during a
-    // ctx.maxPages probe and never when the API just repeated itself. A probe on
-    // a max_pages: 1 entry ends on the entry's own last page too, so any probe
-    // is excluded, not only one whose cap is below the ceiling (#7180).
-    if (lastPageFull && !stoppedOnRepeat && pagesFetched >= ceiling && !(ctxMax > 0)) {
+    // Warn only when OUR ceiling cut a board that had more, never for a
+    // ctx.maxPages probe cap and never when the API just repeated itself.
+    if (lastPageFull && !stoppedOnRepeat && pagesFetched >= ceiling && !(ctxMax > 0 && ctxMax < ceiling)) {
       console.warn(`schoolspring: ${entry.name}: stopped at ${ceiling} pages (${ceiling * PAGE_SIZE} postings); raise max_pages on this entry`);
-      // The same cut marks the result, so scan.mjs logs the board partial
-      // instead of reachable (lib/board-truncation.mjs).
-      markTruncated(jobs, 'page-cap', { fetched: jobs.length });
     }
     return jobs;
   },

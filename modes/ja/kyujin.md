@@ -332,7 +332,7 @@ Full evaluation を `reports/{###}-{company-slug}-{YYYY-MM-DD}.md` に保存す�
 ## Risk Summary
 (リスクシグナルごとに1行、順序は固定 — 上記の Risk Summary セクションを参照)
 
-## H) Draft Application Answers (draft)
+## H) Draft Application Answers
 (only if score >= 4.5 -- draft answers for the application form)
 
 ---
@@ -341,7 +341,7 @@ Full evaluation を `reports/{###}-{company-slug}-{YYYY-MM-DD}.md` に保存す�
 (list of 15-20 keywords from the JD for ATS optimization)
 
 ## Keyword Coverage
-(`keyword-match.mjs` (1b) が生成 — coverage %、present、missing)
+(`keyword-match.mjs` (1b) が生成 — coverage %、present、thin、missing)
 
 ## Job Description (archived verbatim)
 (posting の全文を verbatim で貼る — 下の要件を参照)

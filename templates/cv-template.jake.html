@@ -166,19 +166,15 @@ version: 1.0.0
   .competency-tag:last-child::after { content: ""; }
 
   /* === WORK EXPERIENCE ===
-     Grid, not float: Chromium writes a floated role into the PDF text layer
-     before the header, so an extractor reads the job title first. */
-  .job {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    column-gap: 10px;
-    align-items: baseline;
-    margin-bottom: 7px;
-  }
+     Two-row header. Row 1: company (left) / dates (right). Row 2: role (left) /
+     location (right). The builder emits .job-role and .job-location as separate
+     block divs, so the role is floated left and the location's shortened line
+     box is right-aligned beside it — this reproduces the original's tabular
+     look without needing a wrapper element. */
+  .job { margin-bottom: 7px; }
   .job:last-child { margin-bottom: 0; }
 
   .job-header {
-    grid-column: 1 / -1;
     display: flex;
     justify-content: space-between;
     align-items: baseline;
@@ -196,23 +192,23 @@ version: 1.0.0
   }
 
   .job-role {
-    grid-column: 1;
-    grid-row: 2;
+    float: left;
     font-size: 10.5px;
     font-style: italic;
   }
 
   .job-location {
-    grid-column: 2;
-    grid-row: 2;
     font-size: 10.5px;
     font-style: italic;
-    text-align: end;
+    text-align: right;
   }
 
+  /* Cleared onto its own line under the floated role; floated full-width so
+     the location after it in the DOM still sits beside the role. */
   .job-context {
-    grid-column: 1 / -1;
-    grid-row: 3;
+    clear: both;
+    float: left;
+    width: 100%;
     font-style: italic;
     font-size: 10px;
     line-height: 1.5;
@@ -221,8 +217,7 @@ version: 1.0.0
   }
 
   .job ul {
-    grid-column: 1 / -1;
-    grid-row: 4;
+    clear: both;   /* required: ends the .job-role float before the bullets */
     margin-top: 2px;
     padding-left: 15px;
   }
@@ -341,6 +336,7 @@ version: 1.0.0
   .job-role,
   .job-location,
   .job-context,
+  .edu-location,
   .project-title {
     break-after: avoid;
     page-break-after: avoid;
@@ -359,6 +355,7 @@ version: 1.0.0
     text-align: right;
     font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
   }
+  html[lang="ar"] .job-role { float: right; }
   html[lang="ar"] .job-location { text-align: left; }
   html[lang="ar"] .job ul { padding-right: 15px; padding-left: 0; }
   html[lang="ar"] .cv-photo { float: left; margin: 0 12px 6px 0; }

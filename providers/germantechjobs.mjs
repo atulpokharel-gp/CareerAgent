@@ -11,44 +11,26 @@ import { htmlToText } from './_html-to-text.mjs';
 // providers/startup-jobs.mjs rather than adding an XML dependency.
 //
 // The board is one of the swissdevjobs.ch / devitjobs family (same stack, same
-// feed shape). By default this provider reads GermanTechJobs; `feed_url` points
-// it at another board of the family instead (`FAMILY_HOSTS` below: SwissDevJobs,
-// DEVITjobs UK, DEVITjobs NL). Measured 2026-11-23: each board
-// serves its whole inventory at `https://<host>/rss` in the same item shape, and
-// rows link only to their own board. The legacy JSON API at /api/jobs is
-// deprecated upstream ("ENDPOINT Deprecated - contact hello@swissdevjobs.ch"), so
-// RSS is the stable public surface.
+// feed shape); this provider reads the GermanTechJobs board only. The legacy
+// JSON API at /api/jobs is deprecated upstream ("ENDPOINT Deprecated - contact
+// hello@swissdevjobs.ch"), so RSS is the stable public surface.
 //
 // Two properties of the feed shape the parser:
 //
 //   - `<title>` carries the employer: "{Role} @ {Company} [{salary range}]".
 //     Company comes from that last " @ " segment, and the trailing salary
-//     bracket is stripped from the role. The bracket is in the board's
-//     currency (€, CHF, £), and reads "[CHF ? - ?]" when no figure is given.
-//     A title with no " @ " has no identifiable employer, so the row is
-//     skipped rather than attributed to the board.
+//     bracket is stripped from the role. A title with no " @ " has no
+//     identifiable employer, so the row is skipped rather than attributed to
+//     the board.
 //   - There is no location tag, and the `<description>` does not carry one
 //     either (sampled 2026-10-30: 20 of 626 items mention a location line,
 //     the rest pack salary/requirements/tech only). Location is therefore ''
 //     on every row — see the comment on the mapping below for what that costs.
 //
-// Wire in via a `job_boards:` entry with `provider: germantechjobs`; add
-// `feed_url: https://swissdevjobs.ch/rss` (or another family board) to read
-// that board instead.
+// Wire in via a `job_boards:` entry with `provider: germantechjobs`.
 
 const FEED_URL = 'https://germantechjobs.de/rss';
 const TRUSTED_HOST = 'germantechjobs.de';
-/** The boards of the family, each serving its own `/rss`. */
-const FAMILY_HOSTS = ['germantechjobs.de', 'swissdevjobs.ch', 'devitjobs.uk', 'devitjobs.nl'];
-
-/**
- * The family host a hostname belongs to (itself or a subdomain), or ''.
- * @param {string} hostname
- */
-function familyHost(hostname) {
-  const host = String(hostname).toLowerCase();
-  return FAMILY_HOSTS.find((h) => host === h || host.endsWith(`.${h}`)) || '';
-}
 
 /** @param {string} url */
 function assertFeedUrl(url) {
@@ -59,8 +41,8 @@ function assertFeedUrl(url) {
     throw new Error(`germantechjobs: invalid URL: ${url}`);
   }
   if (parsed.protocol !== 'https:') throw new Error(`germantechjobs: URL must use HTTPS: ${url}`);
-  if (!familyHost(parsed.hostname)) {
-    throw new Error(`germantechjobs: untrusted hostname "${parsed.hostname}" - must be one of ${FAMILY_HOSTS.join(', ')}`);
+  if (parsed.hostname !== TRUSTED_HOST && !parsed.hostname.endsWith(`.${TRUSTED_HOST}`)) {
+    throw new Error(`germantechjobs: untrusted hostname "${parsed.hostname}" - must be ${TRUSTED_HOST}`);
   }
   return url;
 }
@@ -88,13 +70,13 @@ function tagText(block, tag) {
 // Canonical posting URL — Source Indexing Policy rule 2. The feed appends its
 // own attribution to every link (`?utm_source=our_rss_feed&utm_medium=…`), so
 // the query is dropped and the stable /jobs/<slug> path is kept. Only https:
-// links on the board being read are accepted (another family board's link
-// drops the row too); anything else drops the row.
-function cleanUrl(value, boardHost) {
+// links on this board are accepted; anything else drops the row.
+function cleanUrl(value) {
   if (!value) return '';
   try {
     const parsed = new URL(value.trim());
-    const trusted = familyHost(parsed.hostname) === boardHost;
+    const host = parsed.hostname.toLowerCase();
+    const trusted = host === TRUSTED_HOST || host.endsWith(`.${TRUSTED_HOST}`);
     if (parsed.protocol !== 'https:' || !trusted) return '';
     return `https://${parsed.hostname}${parsed.pathname}`;
   } catch {
@@ -108,9 +90,8 @@ function cleanUrl(value, boardHost) {
  *   "CIAM Platform Engineer (w/m/d) @ SEW-EURODRIVE GmbH & Co KG [50.000 - 80.000 €]"
  *   "Technischer Systemberater (w/m/div.) @ Buderus [49.000 - 89.000 €]"
  * The company is after the last " @ ", the role before it, and a trailing
- * salary bracket (" [... €]", " [CHF ... - ...]", " [£... - ...]") is
- * stripped. When no " @ " is present there is no identifiable employer, so
- * the caller drops the row rather than attributing
+ * salary bracket " [... €]" is stripped. When no " @ " is present there is no
+ * identifiable employer, so the caller drops the row rather than attributing
  * it to the board or the portal entry name (phase 1 of the
  * [source policy](https://github.com/career-ops-hq/career-ops/blob/main/CONTRIBUTING.md#source-indexing-policy)
  * asks for listings attributed to an identifiable employer).
@@ -120,7 +101,7 @@ function cleanUrl(value, boardHost) {
  */
 function splitTitle(rawTitle) {
   let text = rawTitle.trim();
-  text = text.replace(/\s*\[[^\]]*(?:€|£|CHF)[^\]]*\]\s*$/, '').trim();
+  text = text.replace(/\s*\[[^\]]*€[^\]]*\]\s*$/, '').trim();
 
   const at = text.lastIndexOf(' @ ');
   if (at > 0) {
@@ -147,18 +128,16 @@ function maskCdataAndComments(str) {
 const ENVELOPE_RE = /<rss\b[^>]*>[\s\S]*<channel\b[^>]*>[\s\S]*<\/channel>[\s\S]*<\/rss>/i;
 
 /**
- * Parse the public RSS feed of GermanTechJobs, or of another family board when
- * `boardHost` names it. Exported for unit tests.
+ * Parse GermanTechJobs' public RSS feed. Exported for unit tests.
  *
  * Shape: `<rss><channel><item>...</item>...</channel></rss>`, each item
  * carrying `<title>`, `<link>`, `<guid>`, `<pubDate>`, `<description>` (HTML
  * CDATA) and `<content:encoded>`. No location tag.
  *
  * @param {string} xml - raw RSS feed body
- * @param {string} [boardHost] - the family host the feed came from (default germantechjobs.de)
  * @returns {Array<{title: string, url: string, company: string, location: string, description: string, postedAt?: number}>}
  */
-export function parseGermantechjobsFeed(xml, boardHost = TRUSTED_HOST) {
+export function parseGermantechjobsFeed(xml) {
   if (typeof xml !== 'string') {
     throw new Error(`germantechjobs: unexpected feed response — expected an <rss><channel> envelope, got: ${typeof xml}`);
   }
@@ -192,7 +171,7 @@ export function parseGermantechjobsFeed(xml, boardHost = TRUSTED_HOST) {
   for (const m of maskedXml.matchAll(/<item\b[^>]*>[\s\S]*?<\/item>/gi)) {
     const item = xml.slice(m.index, m.index + m[0].length);
 
-    const url = cleanUrl(tagText(item, 'link') || tagText(item, 'guid'), boardHost);
+    const url = cleanUrl(tagText(item, 'link') || tagText(item, 'guid'));
     if (!url) continue;
 
     const rawTitle = tagText(item, 'title');
@@ -246,8 +225,8 @@ export default {
   async fetch(entry, ctx) {
     const feedUrl = entry?.feed_url ? assertFeedUrl(entry.feed_url) : assertFeedUrl(FEED_URL);
     // redirect:'error' prevents SSRF via server-side redirects; combined with
-    // assertFeedUrl above it keeps the request pinned to a family board.
+    // assertFeedUrl above it keeps the request pinned to germantechjobs.de.
     const text = await ctx.fetchText(feedUrl, { redirect: 'error' });
-    return parseGermantechjobsFeed(text, familyHost(new URL(feedUrl).hostname));
+    return parseGermantechjobsFeed(text);
   },
 };

@@ -20,7 +20,7 @@ import { relatePostingLanguageKeys, postingLanguageKey, normalizeUrl } from './u
 import {
   openTrackerTransaction, rebuildRow, normalizeCompany, corporateFormTokensMatch,
   MIN_STEM_CHARS, loadCanonicalStates, resolveCanonicalStateId, resolveCanonicalState,
-  stripStatusDecoration, appendLedgerRows,
+  stripStatusDecoration,
   resolveWorkspaceRoot, containedReportFile, reportUrlToken,
 } from './tracker-utils.mjs';
 import { resolveColumns, parseTrackerRow, isUnsetUrlCell, normalizeVia, extractReqNumber, parseScore, normalizeTextKey } from './tracker-parse.mjs';
@@ -56,14 +56,8 @@ const DRY_RUN = process.argv.includes('--dry-run');
 const STATUS_RANK = {
   'skip': 0,
   'discarded': 0,
-  // Evaluated must not outrank Rejected. A higher score used to promote a
-  // rejection to Evaluated, or delete the rejected row, on a title match.
-  'rejected': 2,
+  'rejected': 1,
   'evaluated': 2,
-  // A pitch that went out outranks a report that is still only evaluated, so a
-  // later evaluation of the same role cannot demote it. Below Applied: nothing
-  // has been submitted yet.
-  'speculative': 2.5,
   'applied': 3,
   'responded': 4,
   'assessment': 5,
@@ -131,18 +125,6 @@ function statusRank(status) {
  */
 function isAdvancedStatus(status) {
   return statusRank(status) >= STATUS_RANK.applied;
-}
-
-/**
- * A rejection is kept beside an exact-title sibling unless both rows are the
- * same report. Title match alone is not identity, and Evaluated is not a
- * later status than Rejected.
- *
- * @param {string} status
- * @returns {boolean}
- */
-function isRejectedStatus(status) {
-  return resolveCanonicalStateId(status, CANONICAL_STATES) === 'rejected';
 }
 
 /**
@@ -378,14 +360,11 @@ function roleMatch(a, b) {
   // because a higher-scored exact-title sibling exists would lose status,
   // report, and notes. Keep both unless the rows point to the exact same
   // report identity.
-  if (isAdvancedStatus(a.status) || isAdvancedStatus(b.status) || isRejectedStatus(a.status) || isRejectedStatus(b.status)) {
+  if (isAdvancedStatus(a.status) || isAdvancedStatus(b.status)) {
     const key = pairKey(a, b);
     if (!protectedTitlePairs.has(key)) {
       protectedTitlePairs.add(key);
-      const why = isRejectedStatus(a.status) || isRejectedStatus(b.status)
-        ? 'a rejection is kept unless the report is the same'
-        : 'advanced status requires exact report identity';
-      console.warn(`⚠️  Keep #${a.num} and #${b.num}: exact-title match but ${why}`);
+      console.warn(`⚠️  Keep #${a.num} and #${b.num}: exact-title match but advanced status requires exact report identity`);
     }
     return false;
   }
@@ -571,13 +550,8 @@ for (const [company, companyEntries] of groups) {
       // would admit two rows naming different postings and one would be
       // deleted. Check the candidate's URL and requisition id against every
       // member already in.
-      // roleMatch against the seed is not enough. A Rejected row can join on
-      // shared report identity, and a later exact-title row would then join
-      // through the seed alone and delete the rejection.
       if (companyOk && roleMatch(companyEntries[i], companyEntries[j])
-          && !cluster.some(member => urlsConflict(member, companyEntries[j])
-            || reqNumsConflict(member, companyEntries[j])
-            || !roleMatch(member, companyEntries[j]))) {
+          && !cluster.some(member => urlsConflict(member, companyEntries[j]) || reqNumsConflict(member, companyEntries[j]))) {
         cluster.push(companyEntries[j]);
         processed.add(j);
       }
@@ -594,12 +568,7 @@ for (const [company, companyEntries] of groups) {
     let bestStatus = keeper.status;
     for (let k = 1; k < cluster.length; k++) {
       const rank = statusRank(cluster[k].status);
-      // Rejected and Evaluated share a rank. The higher score must not leave
-      // the surviving same-report row as Evaluated.
-      const rejectionWins = rank === bestStatusRank
-        && isRejectedStatus(cluster[k].status)
-        && !isRejectedStatus(bestStatus);
-      if (rank > bestStatusRank || rejectionWins) {
+      if (rank > bestStatusRank) {
         bestStatusRank = rank;
         bestStatus = cluster[k].status;
       }
@@ -707,6 +676,7 @@ if (!DRY_RUN && removed > 0) {
     for (const p of promotions) releaseClaims.push(statusHooks.claimStatusActivity(p.keeper, `dedup-tracker → ${p.to}`));
   }
   trackerTransaction.replace(lines.join('\n'));
+  console.log(`✅ Written to ${APPS_FILE} (backup: ${backupPath})`);
   // Inside the lock window, like set-status's own append. The removed row's
   // history stays under its old number; this row says where the kept row's
   // status came from. dedup-tracker did not observe the transition, it found
@@ -714,38 +684,18 @@ if (!DRY_RUN && removed > 0) {
   // today, it would otherwise read as "applied today".
   // The keeper's own cell can be a dated legacy one too; strip it the same way
   // so a known prior state is not logged as unknown.
-  //
-  // A status the ledger does not hold cannot be undone, so a failed append puts
-  // the tracker back and the run fails, as set-status.mjs does since #7143.
-  // Every promotion goes in one append: appendLedgerRows() returns the ledger
-  // to the size it had before, so no line survives for a promotion that was
-  // put back.
   const ledgerState = status => resolveCanonicalState(stripStatusDecoration(status), CANONICAL_STATES) ?? '-';
-  let logged = true;
-  if (promotions.length > 0) {
-    const date = localToday();
-    const text = promotions
-      .map(p => `${p.keeper.num}\t${date}\t${ledgerState(p.from)}\t${ledgerState(p.to)}\tdedup-tracker\tfrom #${p.donorNum}\n`)
-      .join('');
-    try {
-      appendLedgerRows(statusHooks.statusLogPath(APPS_FILE), text);
-    } catch (err) {
-      logged = false;
-      let restored = false;
-      try {
-        trackerTransaction.replace(content);
-        restored = true;
-      } catch { /* reported below */ }
-      console.error(restored
-        ? `❌ Could not write the status log (${err.message}), so the tracker was put back: no duplicate was removed.`
-        : `❌ Could not write the status log (${err.message}), and could not put the tracker back: ${removed} duplicate(s) are gone and ${promotions.length} promoted status(es) have no status-log line. The original is in ${backupPath}.`);
-      process.exitCode = 1;
-    }
+  for (const p of promotions) {
+    statusHooks.appendStatusTransition(APPS_FILE, {
+      num: p.keeper.num,
+      date: localToday(),
+      from: ledgerState(p.from),
+      to: ledgerState(p.to),
+      source: 'dedup-tracker',
+      note: `from #${p.donorNum}`,
+    });
   }
-  if (logged) {
-    console.log(`✅ Written to ${APPS_FILE} (backup: ${backupPath})`);
-    committed = true;
-  }
+  committed = true;
 } else if (DRY_RUN) {
   console.log('(dry-run — no changes written)');
 } else {

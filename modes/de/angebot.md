@@ -234,7 +234,7 @@ Die Feldnamen im Kopf (`Date`, `URL`, `Archetype`, `Score`, `Legitimacy`, `PDF`)
 ## Score Evidence
 (fünf Dimensionen, Evidenzstatus, offene Fragen, Evidence confidence, Prioritäten)
 
-## H) Draft-Antworten für die Bewerbung (draft)
+## H) Draft-Antworten für die Bewerbung
 (nur bei Score >= 4.5 — Entwürfe für die Antwortfelder im Bewerbungsformular)
 
 ---
@@ -243,7 +243,7 @@ Die Feldnamen im Kopf (`Date`, `URL`, `Archetype`, `Score`, `Legitimacy`, `PDF`)
 (Liste mit 15-20 Keywords aus der Stellenanzeige für ATS-Optimierung)
 
 ## Keyword Coverage
-(von `keyword-match.mjs` (1b) erzeugt — Abdeckung in %, present, missing)
+(von `keyword-match.mjs` (1b) erzeugt — Abdeckung in %, present, thin, missing)
 
 ## Job Description (archived verbatim)
 (der vollständige Text der Stellenanzeige, wortgleich eingefügt — siehe Anforderung unten)

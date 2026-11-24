@@ -23,10 +23,8 @@
 // the measured page (only page 1 was fetched). The walk also stops as soon as
 // a page brings no new ids.
 
-import { boundedPositiveInt } from './_config-utils.mjs';
 import { decodeEntities } from './_html-entities.mjs';
 import { fetchTextWithRetry, sleep } from './_http.mjs';
-import { markTruncated } from '../lib/board-truncation.mjs';
 
 const DEFAULT_MAX_PAGES = 5;
 const MAX_PAGES_CAP = 20;
@@ -44,7 +42,13 @@ const POSTING_HREF_RE = /href="(?:https:\/\/(?:www\.)?magneto365\.com)?\/[a-z]{2
 
 /** @param {unknown} s */
 function clean(s) {
-  return decodeEntities(String(s ?? '').replace(/<[^>]*(>?)/g, (tag, close) => (close ? ' ' : tag))).replace(/\s+/g, ' ').trim();
+  return decodeEntities(String(s ?? '').replace(/<[^>]*>/g, ' ')).replace(/\s+/g, ' ').trim();
+}
+
+/** Keep user overrides bounded so a typo cannot turn one board into an unbounded crawl. */
+function boundedPositiveInt(value, fallback, cap) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? Math.min(parsed, cap) : fallback;
 }
 
 /**
@@ -213,12 +217,6 @@ export default {
 
     if (stopReason === 'cap') {
       console.warn(`[magneto] ${entry.name}: stopped at max_pages ${maxPages} / max_jobs ${maxJobs}; the search has more results. Raise max_pages or max_jobs on this entry to read them.`);
-    }
-    // A partly read board says so in the return value, so scan.mjs logs it
-    // `partial` instead of `reachable` (lib/board-truncation.mjs). stopReason
-    // already says why the walk stopped; it drives the marker as themuse.mjs does.
-    if (!probing && stopReason !== 'complete') {
-      markTruncated(jobs, stopReason === 'cap' ? 'page-cap' : stopReason, { fetched: jobs.length });
     }
     return jobs;
   },

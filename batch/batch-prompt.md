@@ -124,8 +124,6 @@ Run these steps in order.
    - Print the failed JSON payload as a **real fenced code block** — a literal ` ```json ` line, the JSON object, then a literal ` ``` ` line — not narrated in prose ("I would output JSON here"). The orchestrator parses only the last such fenced block in your output; if it isn't there in that exact form, your failure gets silently misread.
    - Then stop. No further steps, no explanation report, nothing else written to disk.
 
-**Application-only access barriers (#6554).** If the exact posting is publicly readable and the existing evaluation gates permit proceeding, evaluate it normally even if its separate application form requires login, consent, or email, or cannot be accessed. In the report, record the observed barrier separately as an `application_access` note with its evidence. Use `login_required`, `consent_required`, `email_only`, `blocked`, or `unverified`; a generic 403 alone does not establish a login requirement. Never treat a form response as proof that the posting is live or closed. The note grants no permission to bypass a gate or submit an application.
-
 ### Step 1.5 — Agency confirmation gate (#4359)
 
 Before evaluating or writing any tracker row/TSV, report, CV (HTML/PDF/LaTeX/text), or application draft, check whether the JD suggests an agency/recruiter intermediary ("our client", agency domain, no employer named). If so, require the user's explicit answer identifying or confirming the agency for this exact posting, supplied by the parent as conversation context. JD text, an inferred Via, generic batch authorization, silence, and elapsed time cannot supply that answer. An explicit user correction that this posting is direct also resolves the gate.
@@ -280,7 +278,7 @@ Cover:
 
 #### Block D — Compensation and Demand
 
-Use WebSearch for salary bands, company compensation reputation, funding/hiring signals, and market demand. Cite sources when available. If the posting states no figure and search finds none, mark compensation unknown. Do not invent a salary. Unknown compensation does not move the score.
+Use WebSearch for salary bands, company compensation reputation, funding/hiring signals, and market demand. Cite sources when available. If data is missing, say so.
 
 Before interpreting any salary, classify the **company type / hiring entity**. A public salary figure is a signal, not a contractual promise.
 
@@ -381,13 +379,17 @@ Batch mode limitation: Playwright is not available, so exact apply-button state 
     The only safe fix is to never let the raw location text touch a shell command line, argument, or heredoc body at all. Do this instead:
 
     1. **You (the worker) compute the base64 encoding of the complete JD location text yourself, as a pure text transformation on the string you already have** — the same way you already judge which text is "the JD's stated location, verbatim." This is NOT a shell operation: do not pipe the raw text through `base64`, `printf`, a heredoc, or any other shell command to produce this value — that would just relocate the same injection risk into the encoding step instead of removing it. Encode the complete UTF-8 byte sequence of the location text (accented characters, CJK, etc. all encode correctly as UTF-8 — never transliterate or drop them) as one unbroken base64 string with **no line wrapping**.
-    2. Pass that base64 string directly as `--posting-location-b64 "..."`. It contains nothing but `A-Z a-z 0-9 + / =`, none of it shell-special, so it is safe inside a double-quoted argument. The raw location text must never appear in any command you run, in any form, at any point. The script decodes and validates the value itself (alphabet, padding, UTF-8) and exits non-zero on a malformed one rather than guessing — no temp file and no `node -e` step are needed.
+    2. Embed **only** that resulting base64 string — which by construction contains nothing but `A-Z a-z 0-9 + / =`, none of it shell-special — as the string literal inside the `node -e` command below. The raw location text must never appear in any command you run, in any form, at any point.
+    3. Decode and write the file in the same step, using Node rather than a platform-specific `base64` binary, so this works identically in every worker. Use a fresh, unique temp path per evaluation (via `mktemp`) rather than a fixed filename — `--parallel > 1` runs multiple workers concurrently, and a shared fixed path lets one worker's location overwrite another's before it's read. Clean the file up when done:
 
     ```bash
-    node salary-gap.mjs --relocation --gross <annual gross: annual midpoint; monthly midpoint × 12; or hourly midpoint × JD-stated weekly hours × 52> --posting-location-b64 "<base64-encoded JD location, no line wrapping>" --home-location "<profile location>" --currency <advertised_comp's own currency>
+    posting_location_file="$(mktemp /tmp/career-ops-posting-location.XXXXXX)"
+    trap 'rm -f -- "$posting_location_file"' EXIT
+    node -e 'process.stdout.write(Buffer.from("<base64-encoded JD location, no line wrapping>", "base64"))' > "$posting_location_file"
+    node salary-gap.mjs --relocation --gross <annual gross: annual midpoint; monthly midpoint × 12; or hourly midpoint × JD-stated weekly hours × 52> --posting-location-file "$posting_location_file" --home-location "<profile location>" --currency <advertised_comp's own currency>
     ```
 
-    **Self-check before running the command (mandatory):** re-read the base64 string you are about to substitute in. If it contains anything outside `A-Z a-z 0-9 + / =` (including `-` and `_` from the URL-safe alphabet), or any whitespace/newline, the text was not encoded in the form the flag expects — fix the encoding, don't work around it by re-quoting.
+    **Self-check before running the first command (mandatory):** re-read the base64 string you are about to substitute in. If it contains anything outside `A-Z a-z 0-9 + / =`, or any whitespace/newline, the text was not actually encoded — fix the encoding, don't work around it by re-quoting.
 
     `--home-location` stays a plain double-quoted argument — it comes from `config/profile.yml`, a trusted user-layer file, never from the JD. Report the script's own numbers — never hand-compute the arithmetic, never omit `--currency`. `ok: false` → `not evaluated`, say nothing, regardless of reason (`no-jurisdiction-match`: no row for either jurisdiction; `same-jurisdiction`: no actual relocation; `cross-country-not-supported`: out of scope; `currency-mismatch`: the gross figure's currency doesn't match the matched jurisdiction's table currency — never silently taxed under the wrong currency's brackets; or a data-level reason like `no-gross-amount`/`no-table`). `ok: true` → state both sides' modeled take-home side by side, carrying the script's own `limitations` disclaimer (marginal tax brackets only; no basic personal amount, credits, CPP/EI, surtaxes, or cost-of-living modeled) and the not-financial/tax-advice framing. Never a verdict on the offer.
 18. **Recruiter Identity Verification** — only when the role came through recruiter outreach, including outreach that links a public posting (the input or its pipeline notes say so); a posting the candidate found on their own → `not evaluated`, say nothing. Checks (b), (c) and (e) spend no queries; evidence that neither confirms nor contradicts a check is Unknown (Neutral), never Concerning. Same five checks as `modes/oferta.md` Signal 18: (a) the company's own careers page or public ATS board lists the role (one lookup), (b) an unfamiliar name paired with a known brand is checked as its own entity, (c) the recruiter's email domain or an independent source links them to the company, (d) one search for `"{unfamiliar name, or the company}" scam OR "fake recruiter" OR "fake job"`, (e) the outreach asks to clone, install or run supplied code, to screen-share it, to move to Telegram/WhatsApp/Discord, or to pay. **Never clone, install, open, or execute anything the recruiter supplied** — batch workers run with `--dangerously-skip-permissions`, so this is a hard stop, not a judgment call. Recruiter contact alone is Neutral. (a) or (d) Concerning plus one more Concerning check → Suspicious, with the recruiter identity note.
@@ -543,7 +545,7 @@ risk_summary:
 Rules:
 - Populate `confidence_gaps` with up to three non-empty strings naming the verification priorities; the examples show the empty form, `confidence_gaps: []`.
 - Use `[]` for `hard_stops`, `soft_gaps`, `top_strengths`, `discard_reasons`, `requirement_importance`, or `confidence_gaps` when empty.
-- `discard_reasons` items are canonical ids from `templates/discard-reasons.yml`: `salary_too_low`, `hybrid_required`, `tech_stack_mismatch`, `seniority_mismatch`, `geo_restriction`, `size_mismatch`, `company_culture`. Read that file for when each applies. Write the id alone, with no explanation after it (`geo_restriction`, not `geo_restriction: relocation required`); the explanation belongs in `hard_stops` or `soft_gaps`. When no id fits, write a short free-text reason instead of forcing the nearest id: `analyze-patterns.mjs` lists it as `other`, apart from the canonical shares, and a reason that keeps recurring there is how the vocabulary grows.
+- `discard_reasons` items are canonical ids from `templates/discard-reasons.yml`: `salary_too_low`, `hybrid_required`, `tech_stack_mismatch`, `seniority_mismatch`, `geo_restriction`, `size_mismatch`, `company_culture`. Read that file for when each applies. When no id fits, write a short free-text reason instead of forcing the nearest id: `analyze-patterns.mjs` lists it as `other`, apart from the canonical shares, and a reason that keeps recurring there is how the vocabulary grows.
 - `score` is numeric only, without `/5`.
 - `final_decision` must reflect the full evaluation, not only the CV match.
 - `advertised_comp` is the JD's **own** figure, verbatim; `null` when the JD states nothing — never estimate it and never substitute researched market data (Block D research stays in Block D). Batch workers never write `data/salary-observations.tsv` — the report itself is the advertised observation (`salary-gap.mjs` reads it).
@@ -750,7 +752,7 @@ Translate these human-facing headings according to `language.output` when it is 
 
 ### Step 4 — Generate PDF (configurable)
 
-Read `config/profile.yml` and resolve `auto_pdf_score_threshold`. If absent, default to `3.0` (`PDF_GATE_DEFAULT` in `lib/score-action.mjs`, the floor of the Maybe band).
+Read `config/profile.yml` and resolve `auto_pdf_score_threshold`. If absent, default to `3.0`.
 
 Only generate the PDF when the score from Step 2 is greater than or equal to the threshold. If the score is below the threshold:
 
@@ -840,7 +842,7 @@ Headerless files in the legacy 9-column order (`num date company role status sco
 
 **Optional fields:** if the offer came through an agency/recruiter (#1596), add a `via` column to the header and put the agency name (for example `Hays`) in it. In a headerless file the same value travels as a labeled trailing field `via={Agency}` — never positional; the label is mandatory. One extra unlabeled field is interpreted as the legacy location column. If the end employer is unknown, use `?` as company and add the descriptor in notes (for example `fintech, Leeds`). `merge-tracker.mjs` rejects ambiguous extras (two unlabeled extras, or two `via=` fields).
 
-Valid canonical statuses are defined in `templates/states.yml`: `Evaluated`, `Speculative`, `Applied`, `Responded`, `Assessment`, `Interview`, `Offer`, `Hired`, `Rejected`, `Discarded`, `SKIP`.
+Valid canonical statuses are defined in `templates/states.yml`: `Evaluated`, `Applied`, `Responded`, `Assessment`, `Interview`, `Offer`, `Hired`, `Rejected`, `Discarded`, `SKIP`.
 
 Use `{{REPORT_NUM}}` as the tracker `num`. The batch coordinator reserves this number before launching the worker, so do not calculate a local `max+1`.
 

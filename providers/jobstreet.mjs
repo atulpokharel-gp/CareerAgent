@@ -46,9 +46,7 @@ import { fetchJsonWithRetry, sleep } from "./_http.mjs";
 //   ID-Main  → id.jobstreet.com (Indonesia)
 //   SG-Main  → sg.jobstreet.com (Singapore)
 //   MY-Main  → my.jobstreet.com (Malaysia)
-//   PH-Main  → ph.jobstreet.com (Philippines)
-//   AU-Main  → au.seek.com      (Australia — set api: https://au.seek.com/api/jobsearch/v5/search;
-//              www.seek.com.au now 308-redirects there, and redirects are refused)
+//   AU-Main  → www.seek.com.au  (Australia — set api: https://www.seek.com.au/api/jobsearch/v5/search)
 //   NZ-Main  → www.seek.co.nz   (New Zealand)
 //   HK-Main  → hk.jobsdb.com    (Hong Kong)
 //
@@ -85,22 +83,11 @@ const ALLOWED_JOBSTREET_HOSTS = new Set([
   "jobstreet.co.id",
   "sg.jobstreet.com",
   "my.jobstreet.com",
-  "ph.jobstreet.com",
   // SEEK's Hong Kong property keeps the JobsDB brand; same v5 search API.
   "hk.jobsdb.com",
   "www.seek.com.au",
-  // SEEK moved its AU API to au.seek.com (www.seek.com.au answers 308 there).
-  "au.seek.com",
   "www.seek.co.nz",
 ]);
-
-// Configs that still name the old AU API host are sent to the new one: the
-// old host answers 308 and requests refuse redirects.
-const API_ORIGIN_ALIASES = new Map([["https://www.seek.com.au", "https://au.seek.com"]]);
-
-// Job-detail links stay on the legacy host so scan-history and tracker URLs
-// keep deduplicating against listings recorded before the move.
-const JOB_URL_ORIGIN = new Map([["https://au.seek.com", "https://www.seek.com.au"]]);
 
 // v5 API paths (the client-side JS on jobstreet uses these relative paths
 // resolved against the current origin). We keep the allowlist for SSRF
@@ -109,7 +96,7 @@ const V5_SEARCH_PATH = "/api/jobsearch/v5/search";
 
 // Job-detail path by market. Only the Indonesian sites carry the `/id/` locale
 // prefix (https://id.jobstreet.com/id/job/<id>). Every other SEEK-platform host
-// — my/ph/sg.jobstreet.com, www.seek.com.au, www.seek.co.nz — serves /job/<id> and
+// — my/sg.jobstreet.com, www.seek.com.au, www.seek.co.nz — serves /job/<id> and
 // answers 404 on /id/job/<id> (verified against live ids, 2026-08-28). A global
 // switch either way breaks one market, which is why this is keyed on the host.
 const ID_LOCALE_HOSTS = new Set([
@@ -288,8 +275,7 @@ export default {
   async fetch(entry, ctx) {
     const apiUrl = entry.api || DEFAULT_API;
     assertJobstreetUrl(apiUrl);
-    const configuredOrigin = deriveOrigin(apiUrl);
-    const origin = API_ORIGIN_ALIASES.get(configuredOrigin) || configuredOrigin;
+    const origin = deriveOrigin(apiUrl);
 
     const siteKey = entry.siteKey || DEFAULT_SITE_KEY;
     const keywords = entry.searchKeywords || "";
@@ -359,7 +345,7 @@ export default {
         latestTotal = json.totalCount;
       }
       for (const item of data) {
-        const job = parseJobstreetItem(item, JOB_URL_ORIGIN.get(origin) || origin, fallbackCompany, {
+        const job = parseJobstreetItem(item, origin, fallbackCompany, {
           appendWorkType,
         });
         if (job) allJobs.push(job);

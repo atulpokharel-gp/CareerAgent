@@ -30,9 +30,7 @@
 //
 // Wire in via a `job_boards:` entry with `provider: thehub`.
 
-import { coerceId } from './_ids.mjs';
 import { safeEncodeURIComponent } from './_safe-url.mjs';
-import { markTruncated } from '../lib/board-truncation.mjs';
 
 const FEED_BASE = 'https://thehub.io/api/v2/jobsandfeatured';
 const TRUSTED_HOST = 'thehub.io';
@@ -75,13 +73,10 @@ export function parseThehubConfig(entry) {
  *               "The Hub".
  *   - location: `location.address`, else assembled from `location.locality` /
  *               `location.country`; "Remote" is appended when `isRemote` is true.
- *   - externalId: `id`, the feed's own posting id. Every returned row has a
- *               usable id (rows without one are dropped above), so it is
- *               always set here.
  *
  * @param {any} j
  * @param {string} [fallbackCompany]
- * @returns {{ title: string, url: string, company: string, location: string, externalId?: string } | null}
+ * @returns {{ title: string, url: string, company: string, location: string } | null}
  */
 export function normalizeHubJob(j, fallbackCompany) {
   if (!j || typeof j !== 'object') return null;
@@ -112,8 +107,7 @@ export function normalizeHubJob(j, fallbackCompany) {
   const base = address || [locality, country].filter(Boolean).join(', ');
   const location = [base, j.isRemote === true ? 'Remote' : ''].filter(Boolean).join(', ');
 
-  const externalId = coerceId(j.id);
-  return { title, url, company, location, ...(externalId ? { externalId } : {}) };
+  return { title, url, company, location };
 }
 
 /**
@@ -133,7 +127,7 @@ export function normalizeHubJob(j, fallbackCompany) {
  * @param {string} query the query string beyond `?`, e.g. `countryCode=EU` or `isRemote=true`
  * @param {number} maxPages
  * @param {string | undefined} fallbackCompany
- * @param {Map<string, {title: string, url: string, company: string, location: string, externalId?: string}>} byUrl
+ * @param {Map<string, {title: string, url: string, company: string, location: string}>} byUrl
  * @param {{ fetchJson: (url: string, opts?: object) => Promise<any> }} ctx
  * @param {{ succeededOnce: boolean }} state
  * @returns {Promise<boolean>}
@@ -180,15 +174,10 @@ export default {
     const state = { succeededOnce: false };
 
     const regionOk = await fetchScope(`countryCode=${encodeURIComponent(countryCode)}`, maxPages, fallbackCompany, byUrl, ctx, state);
-    const remoteOk = regionOk && includeRemote
-      ? await fetchScope('isRemote=true', maxPages, fallbackCompany, byUrl, ctx, state)
-      : true;
+    if (regionOk && includeRemote) {
+      await fetchScope('isRemote=true', maxPages, fallbackCompany, byUrl, ctx, state);
+    }
 
-    const jobs = [...byUrl.values()];
-    // A pass that stopped on a failure (or a remote pass skipped because the
-    // region pass did) left part of the board unread. The result says so, so
-    // scan.mjs logs it partial instead of reachable (lib/board-truncation.mjs).
-    if (!regionOk || !remoteOk) markTruncated(jobs, 'fetch-error', { fetched: jobs.length });
-    return jobs;
+    return [...byUrl.values()];
   },
 };

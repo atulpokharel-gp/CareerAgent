@@ -1,6 +1,5 @@
 // @ts-check
 /** @typedef {import('./_types.js').Provider} Provider */
-/** @typedef {import('./_types.js').Job} Job */
 
 // Workable provider — public, no-auth account widget API:
 //   GET https://apply.workable.com/api/v1/widget/accounts/<slug>?details=true
@@ -39,10 +38,7 @@
 // carries every tenant's postings at once (loadWorkableFeed). scan.mjs never
 // uses it; scan-ats-full.mjs does, as its Workable source.
 
-import { employmentTypeField } from './_employment-type.mjs';
-import { sourceLabel } from './_department-team.mjs';
 import { decodeEntities } from './_html-entities.mjs';
-import { replaceScriptStyleBlocks } from './_html-to-text.mjs';
 import { BROWSER_LIKE_USER_AGENT, fetchTextStream, isRetryableError, parseRetryAfterMs, sleep } from './_http.mjs';
 
 const ALLOWED_WORKABLE_HOSTS = new Set(['apply.workable.com']);
@@ -123,16 +119,12 @@ function assertWorkableUrl(url) {
   return url;
 }
 
-const API_ACCOUNT_RE = /^\/api\/v\d+\/(?:widget\/)?accounts\/([^/]+)/i;
-
 /**
- * Extract the account slug from a tracked_companies entry's api or careers_url.
+ * Extract the account slug from a tracked_companies entry's careers_url.
  * @returns {string|null}
  */
 export function resolveWorkableSlug(entry) {
-  const rawApi = typeof entry?.api === 'string' ? entry.api.trim() : '';
-  const rawCareers = typeof entry?.careers_url === 'string' ? entry.careers_url.trim() : '';
-  const raw = rawApi || rawCareers;
+  const raw = entry && typeof entry.careers_url === 'string' ? entry.careers_url : '';
   if (!raw) return null;
   let parsed;
   try {
@@ -142,10 +134,7 @@ export function resolveWorkableSlug(entry) {
   }
   if (parsed.protocol !== 'https:') return null;
   if (parsed.hostname !== 'apply.workable.com') return null;
-  const segs = parsed.pathname.split('/').filter(Boolean);
-  const first = segs[0]?.toLowerCase();
-  if (!first || first === 'j') return null;
-  const slug = first === 'api' ? parsed.pathname.match(API_ACCOUNT_RE)?.[1] : segs[0];
+  const slug = parsed.pathname.split('/').filter(Boolean)[0];
   if (!slug || !SLUG_RE.test(slug)) return null;
   return slug;
 }
@@ -185,7 +174,7 @@ export default {
         payload = null; // fall through to the markdown feed
       }
       if (payload && Array.isArray(payload.jobs)) {
-        return parseWorkableWidget(payload, entry.name, slug);
+        return parseWorkableWidget(payload, entry.name);
       }
 
       // Fallback: legacy markdown feed (small accounts only — see header note).
@@ -250,41 +239,12 @@ function formatLocation(job) {
 function toPlainText(html) {
   if (typeof html !== 'string' || !html) return '';
   return decodeEntities(
-    replaceScriptStyleBlocks(html, ' ', { wordBoundary: true })
+    html
+      .replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1>/gi, ' ')
       .replace(/<br\s*\/?>/gi, '\n')
       .replace(/<\/(p|div|li|h[1-6])>/gi, '\n')
-      .replace(/<([^>]*)(>?)/g, (tag, body, close) => (close && body ? ' ' : tag)),
+      .replace(/<[^>]+>/g, ' '),
   ).replace(/[ \t ]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
-}
-
-// Opaque board and posting ids, per docs/listing-fingerprint.md: a nonempty
-// string with no surrounding whitespace and no ASCII controls. Anything else
-// is not an id. Numbers are not coerced, and nothing is trimmed or case-folded.
-function opaqueListingId(value) {
-  if (typeof value !== 'string' || value === '' || value !== value.trim()) return undefined;
-  if (/[\u0000-\u001f\u007f]/u.test(value)) return undefined;
-  return value;
-}
-
-/**
- * The posting's ATS-native identity: the account slug the board was already
- * resolved at, and the widget payload's `shortcode`, never a token parsed out
- * of a URL. Returns undefined unless the shortcode is a clean opaque string
- * and the slug is an account slug this provider would resolve, so an unusable
- * shortcode or slug leaves that row on URL dedup.
- * Exported for unit tests.
- *
- * @param {string | null | undefined} slug
- * @param {unknown} shortcode
- * @returns {{ats_provider: 'workable', board_slug: string, posting_id: string} | undefined}
- */
-export function workableListingIdentity(slug, shortcode) {
-  const board = opaqueListingId(slug);
-  const postingId = opaqueListingId(shortcode);
-  // The slug is the account namespace resolveWorkableSlug already accepted.
-  // A string that could not be that namespace is not a board_slug.
-  if (!board || !SLUG_RE.test(board) || !postingId) return undefined;
-  return { ats_provider: 'workable', board_slug: board, posting_id: postingId };
 }
 
 /**
@@ -313,24 +273,14 @@ export function workableListingIdentity(slug, shortcode) {
  * it does not fan out, it just prints the primary location and drops the rest
  * at the source, so nothing is left in its rows to accumulate.
  *
- * listingIdentity belongs to the folded posting, not to each location row.
- * It is attached once, after the fold, from the first entry's `shortcode`
- * (the same entry that supplies every non-location field) and the account
- * slug the caller already resolved. A sibling does not get its own identity,
- * and a shortcode is never read out of the URL. No slug, or a shortcode that
- * is missing, padded, numeric or carrying a control character, leaves
- * listingIdentity off so the scan keeps URL dedup.
- *
  * @param {any} payload — parsed JSON body of the widget endpoint
  * @param {string} companyName — value to write into job.company
- * @param {string} [boardSlug] Account slug the board was already resolved at.
- *   Callers with no namespace (the public XML feed) omit it and get no identity.
- * @returns {Job[]}
+ * @returns {Array<{title: string, url: string, company: string, location: string, description?: string, postedAt?: number}>}
  */
-export function parseWorkableWidget(payload, companyName, boardSlug) {
+export function parseWorkableWidget(payload, companyName) {
   if (!payload || !Array.isArray(payload.jobs)) return [];
   const jobs = [];
-  /** @type {Map<string, {job: any, locations: Set<string>, tele: boolean, shortcode: unknown}>} */
+  /** @type {Map<string, {job: any, locations: Set<string>, tele: boolean}>} */
   const byUrl = new Map();
   for (const raw of payload.jobs) {
     const title = typeof raw?.title === 'string' ? raw.title.trim() : '';
@@ -357,7 +307,7 @@ export function parseWorkableWidget(payload, companyName, boardSlug) {
     }
 
     /** @type {any} */
-    const job = { title, url, location, company: companyName, ...employmentTypeField(workableEmploymentType(raw)) };
+    const job = { title, url, location, company: companyName };
 
     const description = toPlainText(raw?.description);
     if (description) job.description = description;
@@ -365,27 +315,20 @@ export function parseWorkableWidget(payload, companyName, boardSlug) {
     const stamp = Date.parse(raw?.published_on || raw?.created_at || '');
     if (Number.isFinite(stamp)) job.postedAt = stamp;
 
-    const department = sourceLabel(raw?.department);
-    if (department) job.department = department;
-
     jobs.push(job);
-    byUrl.set(url, { job, locations: new Set(location ? [location] : []), tele, shortcode: raw?.shortcode });
+    byUrl.set(url, { job, locations: new Set(location ? [location] : []), tele });
   }
 
   // A Set iterates in insertion order, so the joined cell follows payload order
   // and a single-location posting re-joins to the exact string it already had.
   // Remote is appended once, after the join, and only when no place already
   // says it — an empty-place row already contributed the word "Remote".
-  // Identity is applied here, on the merged posting, from the first entry's
-  // shortcode. Siblings contributed locations only.
-  for (const { job, locations, tele, shortcode } of byUrl.values()) {
+  for (const { job, locations, tele } of byUrl.values()) {
     let location = [...locations].join(LOCATION_SEPARATOR);
     if (tele && !/remote/i.test(location)) {
       location = location ? `${location}${LOCATION_SEPARATOR}Remote` : 'Remote';
     }
     job.location = location;
-    const listingIdentity = workableListingIdentity(boardSlug, shortcode);
-    if (listingIdentity) job.listingIdentity = listingIdentity;
   }
   return jobs;
 }
@@ -402,7 +345,7 @@ export function parseWorkableWidget(payload, companyName, boardSlug) {
  *
  * @param {string} text — markdown body
  * @param {string} companyName — value to write into job.company
- * @returns {Array<{title: string, url: string, company: string, location: string, employmentType?: string}>}
+ * @returns {Array<{title: string, url: string, company: string, location: string}>}
  */
 export function parseWorkableMarkdown(text, companyName) {
   if (typeof text !== 'string') return [];
@@ -411,14 +354,10 @@ export function parseWorkableMarkdown(text, companyName) {
     if (!line.startsWith('|') || !line.includes('[View]')) continue;
     const cols = line.split('|').map(c => c.trim());
     // Cols: ['', title, dept, location, type, salary, posted, '[View](url.md)', '']
-    // Title is free text and can hold a pipe, which adds a cell. Location and
-    // Type are counted back from Details, and the title takes every cell
-    // before Department, so an extra pipe in the title moves neither.
-    const detailsIdx = cols.findLastIndex(c => c.includes('[View]'));
-    if (detailsIdx < 7) continue;
-    const title = cols.slice(1, detailsIdx - 5).join(' | ');
+    if (cols.length < 8) continue;
+    const title = cols[1];
     if (!title || title === 'Title') continue;
-    const location = cols[detailsIdx - 4] || '';
+    const location = cols[3] || '';
     const urlMatch = line.match(/\[View\]\(([^)]+)\)/);
     let url = urlMatch ? urlMatch[1] : '';
     if (url.endsWith('.md')) url = url.slice(0, -3);
@@ -427,10 +366,7 @@ export function parseWorkableMarkdown(text, companyName) {
     const safe = safeJobUrl(url);
     if (!safe) continue;
 
-    // The Type column carries the widget's labels ("Full-time", "Contract").
-    // The table has no experience level, so an internship listed as
-    // "Full-time" reads as full_time here, unlike the widget and the feed.
-    jobs.push({ title, url: safe, location, company: companyName, ...employmentTypeField(cols[detailsIdx - 3]) });
+    jobs.push({ title, url: safe, location, company: companyName });
   }
   return jobs;
 }
@@ -534,20 +470,6 @@ export function readFeedField(block, name) {
 }
 
 /**
- * The employment type of a widget or feed row. `employment_type` (the feed's
- * `<jobtype>`) takes "Full-time", "Part-time", "Contract", "Temporary",
- * "Other" or is empty. Workable states an internship in `experience`, a
- * LinkedIn-style level ("Internship", "Associate", "Mid-Senior level"), on
- * rows whose type is usually "Full-time" (feed sample 2026-11-22: 38 of 43),
- * so an "Internship" level decides for those rows.
- * @param {any} raw
- */
-export function workableEmploymentType(raw) {
-  if (/^internship$/i.test(String(raw?.experience ?? '').trim())) return 'Internship';
-  return raw?.employment_type;
-}
-
-/**
  * One feed `<job>` in the widget's row shape, so parseWorkableWidget can read
  * it. Null when the block has no title or URL.
  * @param {string} block
@@ -566,9 +488,6 @@ export function feedRowToWidgetRow(block) {
     telecommuting: readFeedField(block, 'remote').toLowerCase() === 'true',
     published_on: Number.isNaN(stamp) ? '' : new Date(stamp).toISOString(),
     description: readFeedField(block, 'description'),
-    // The same fields as the widget's; workableEmploymentType() reads them.
-    employment_type: readFeedField(block, 'jobtype'),
-    experience: readFeedField(block, 'experience'),
     company: readFeedField(block, 'company'),
     website: readFeedField(block, 'website'),
     _postedMs: Number.isNaN(stamp) ? null : stamp,
@@ -626,8 +545,7 @@ export function createFeedJobSplitter(onBlock) {
  * A posting is kept when its title passes `titleFilter` (called with the
  * employer's name, which stands in for the company slug of other sources) and
  * none of its rows is older than `cutoffMs`: the posting's date is its oldest
- * row. A row with no date counts only with `includeUndated`. Every employer
- * in the feed is returned, with no postings when none was kept.
+ * row. A row with no date counts only with `includeUndated`.
  *
  * Throws, so the caller keeps nothing from a bad read, when the response is
  * not the feed (no `<source>` root), when it ends before `</source>` (a body
@@ -658,14 +576,11 @@ export async function loadWorkableFeed({
   const stale = new Set();
   const stats = { rows: 0, keptRows: 0, postings: 0, staleRows: 0, undatedRows: 0, bytes: 0 };
   let held = 0;
-  /** @type {Map<string, string>} every employer in the feed → its website */
-  const employers = new Map();
 
   const splitter = createFeedJobSplitter((block) => {
     stats.rows++;
     const row = feedRowToWidgetRow(block);
     if (!row || !row.company) return;
-    if (!employers.get(row.company)) employers.set(row.company, row.website);
     if (!titleFilter(row.title, row.company)) return;
     const key = row.shortlink;
     if (row._postedMs === null) {
@@ -698,24 +613,23 @@ export async function loadWorkableFeed({
     throw new Error(`workable feed: the response ended before </source> after ${stats.rows} <job> rows; the feed was cut short`);
   }
 
-  /** @type {Map<string, any[]>} employer → its kept rows */
-  const rowsByCompany = new Map();
+  /** @type {Map<string, { company: string, website: string, rows: any[] }>} */
+  const byCompany = new Map();
   for (const rows of rowsByUrl.values()) {
     stats.keptRows += rows.length;
-    const { company } = rows[0];
-    const group = rowsByCompany.get(company) ?? [];
-    group.push(...rows);
-    rowsByCompany.set(company, group);
+    const { company, website } = rows[0];
+    const group = byCompany.get(company) ?? { company, website, rows: [] };
+    if (!group.website && website) group.website = website;
+    group.rows.push(...rows);
+    byCompany.set(company, group);
   }
-  // Every employer in the feed is a board, an empty one when none of its
-  // postings passed, as every tenant of a directory is for the other sources.
   const companies = [];
-  for (const [company, website] of employers) {
-    const rows = rowsByCompany.get(company) ?? [];
+  for (const { company, website, rows } of byCompany.values()) {
     // Oldest row first: parseWorkableWidget takes a posting's date from the
     // first row it sees for that URL.
     rows.sort((a, b) => (a._postedMs ?? Infinity) - (b._postedMs ?? Infinity));
     const jobs = parseWorkableWidget({ jobs: rows }, company);
+    if (!jobs.length) continue;
     stats.postings += jobs.length;
     companies.push({ company, website, jobs });
   }
