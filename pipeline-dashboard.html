@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Application Pipeline — Atul Pokharel</title>
+<style>
+  :root{
+    --bg:#f4f5f7; --surface:#ffffff; --surface-2:#eef0f4; --fg:#1a1d24; --muted:#5b6472;
+    --line:#dfe3ea; --accent:#0e7c86; --accent-2:#6d4a96;
+    --good:#1f8a4c; --warn:#b5720e; --bad:#b23b3b; --pending:#8a6d1f; --radius:12px;
+    --font:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
+    --head:"Space Grotesk","Inter",system-ui,sans-serif;
+    --mono:ui-monospace,"SFMono-Regular",Menlo,monospace;
+  }
+  @media (prefers-color-scheme:dark){:root{
+    --bg:#13161c; --surface:#1b1f27; --surface-2:#222731; --fg:#e8ebf0; --muted:#9aa4b2;
+    --line:#2c333f; --accent:#3bb7c2; --accent-2:#a98bdc;
+    --good:#49c57e; --warn:#e0a63c; --bad:#e46d6d; --pending:#d8b34a; color-scheme:dark;
+  }}
+  *{box-sizing:border-box}
+  body{background:var(--bg);color:var(--fg);font-family:var(--font);line-height:1.5;margin:0;
+    font-variant-numeric:tabular-nums}
+  .wrap{max-width:1040px;margin:0 auto;padding:28px 16px 64px}
+  h1,h2,h3{font-family:var(--head);margin:0}
+  h1{font-size:1.65rem;font-weight:700;letter-spacing:-.01em}
+  .sub{color:var(--muted);margin:6px 0 0;font-size:.95rem}
+  .eyebrow{font-family:var(--head);text-transform:uppercase;letter-spacing:.09em;font-size:.72rem;color:var(--accent);font-weight:600}
+  .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin:22px 0 10px}
+  .tile{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px}
+  .tile .n{font-family:var(--head);font-size:1.7rem;font-weight:700;line-height:1}
+  .tile .l{color:var(--muted);font-size:.78rem;margin-top:6px}
+  .tile.good .n{color:var(--good)} .tile.pending .n{color:var(--pending)} .tile.bad .n{color:var(--bad)}
+  .bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:24px 0 14px;border-bottom:1px solid var(--line);padding-bottom:14px}
+  .seg{display:inline-flex;background:var(--surface-2);border:1px solid var(--line);border-radius:999px;padding:3px;flex-wrap:wrap}
+  .seg button{font:inherit;font-size:.84rem;border:0;background:transparent;color:var(--muted);padding:6px 13px;border-radius:999px;cursor:pointer}
+  .seg button[aria-pressed="true"]{background:var(--surface);color:var(--fg);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.12)}
+  .spacer{flex:1 1 auto}
+  .list{display:flex;flex-direction:column;gap:10px}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+  .card.lead{border-color:var(--accent)}
+  .row{display:grid;grid-template-columns:38px 1fr auto;gap:14px;align-items:center;padding:14px 16px;cursor:pointer;width:100%;border:0;background:transparent;color:inherit;font:inherit;text-align:left}
+  .rank{font-family:var(--head);font-weight:700;color:var(--muted);font-size:.95rem;text-align:center}
+  .co{font-family:var(--head);font-weight:600;font-size:1.02rem;min-width:0}
+  .role{color:var(--muted);font-size:.86rem;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .meta{display:flex;gap:7px;flex-wrap:wrap;margin-top:7px}
+  .chip{font-size:.71rem;padding:2px 8px;border-radius:999px;background:var(--surface-2);border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+  .right{display:flex;align-items:center;gap:12px}
+  .score{font-family:var(--head);font-weight:700;font-size:1.25rem;line-height:1;text-align:right}
+  .score small{display:block;font-size:.6rem;font-weight:500;color:var(--muted);letter-spacing:.04em}
+  .rec{font-size:.72rem;font-weight:700;padding:4px 9px;border-radius:7px;white-space:nowrap}
+  .rec.apply{background:color-mix(in srgb,var(--good) 16%,transparent);color:var(--good)}
+  .rec.skip{background:color-mix(in srgb,var(--bad) 14%,transparent);color:var(--bad)}
+  .rec.maybe{background:color-mix(in srgb,var(--warn) 15%,transparent);color:var(--warn)}
+  .caret{color:var(--muted);transition:transform .18s;font-size:.8rem}
+  .card.open .caret{transform:rotate(90deg)}
+  .detail{border-top:1px solid var(--line);padding:4px 16px 18px;display:none;background:var(--surface-2)}
+  .card.open .detail{display:block}
+  .dgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-top:14px}
+  .dblock .k{font-size:.7rem;text-transform:uppercase;letter-spacing:.06em;color:var(--accent);font-weight:600;margin-bottom:4px}
+  .dblock .v{font-size:.9rem}
+  .dblock.wide{grid-column:1/-1}
+  .verdict{font-size:.92rem;background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:8px;padding:11px 13px;margin-top:14px}
+  .gaps li{font-size:.88rem;margin:2px 0}
+  .reportref{font-family:var(--mono);font-size:.74rem;color:var(--muted);margin-top:12px}
+  .feed{display:flex;flex-direction:column}
+  .ev{display:grid;grid-template-columns:30px 1fr auto;gap:12px;padding:13px 4px;border-bottom:1px solid var(--line);align-items:start}
+  .ev .ic{font-size:1.05rem;text-align:center}
+  .ev .t{font-weight:600;font-size:.93rem}
+  .ev .d{color:var(--muted);font-size:.85rem;margin-top:2px}
+  .ev .ts{color:var(--muted);font-size:.74rem;font-family:var(--mono);white-space:nowrap}
+  .ho-intro{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px;margin-bottom:16px}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:10px;font-size:.84rem;color:var(--muted)}
+  .legend b{color:var(--fg)}
+  .ho-role{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);margin-bottom:12px;overflow:hidden}
+  .ho-head{padding:13px 16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+  .ho-head .t{font-family:var(--head);font-weight:600}
+  .steps{list-style:none;margin:0;padding:6px 0}
+  .step{display:grid;grid-template-columns:26px 24px 1fr auto;gap:10px;align-items:start;padding:8px 16px}
+  .step input{margin-top:3px;width:16px;height:16px;accent-color:var(--accent)}
+  .owner{font-size:1rem;text-align:center}
+  .step .txt{font-size:.88rem;min-width:0}
+  .step .txt small{display:block;color:var(--muted);font-size:.78rem}
+  .st{font-size:.68rem;font-weight:700;padding:3px 7px;border-radius:6px;white-space:nowrap;align-self:center}
+  .st.agent{background:color-mix(in srgb,var(--accent) 16%,transparent);color:var(--accent)}
+  .st.human{background:color-mix(in srgb,var(--accent-2) 18%,transparent);color:var(--accent-2)}
+  .st.block{background:color-mix(in srgb,var(--bad) 15%,transparent);color:var(--bad)}
+  .step.done .txt{text-decoration:line-through;color:var(--muted)}
+  .byagent{font-size:.68rem;color:var(--accent);font-weight:600}
+  footer{margin-top:36px;color:var(--muted);font-size:.8rem;border-top:1px solid var(--line);padding-top:16px}
+  .hide{display:none!important}
+  @media (max-width:520px){.row{grid-template-columns:28px 1fr}.right{grid-column:1/-1;justify-content:flex-start;padding-left:38px}.score{text-align:left}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">Career-Ops · runs locally · 2026-11-24</div>
+  <h1>Application Pipeline</h1>
+  <p class="sub">38 AI/ML roles evaluated against your CV. Honest fit scores (0–5). Tick handoff steps to track where the agent stops and you take over — saved in this browser.</p>
+  <div class="tiles" id="tiles"></div>
+  <div class="bar">
+    <div class="seg" id="view" role="group" aria-label="View">
+      <button data-v="board" aria-pressed="true">Board</button>
+      <button data-v="activity">Activity</button>
+      <button data-v="handoff">Handoff</button>
+      <button data-v="needs">Needs You</button>
+    </div>
+    <span class="spacer"></span>
+    <div class="seg" id="filter" role="group" aria-label="Filter">
+      <button data-f="all" aria-pressed="true">All</button>
+      <button data-f="apply">Apply</button>
+      <button data-f="maybe">Borderline</button>
+      <button data-f="skip">Skip</button>
+    </div>
+  </div>
+  <div id="board" class="list"></div>
+  <div id="activity" class="hide"><div class="feed" id="feed"></div></div>
+  <div id="handoff" class="hide">
+    <div class="ho-intro">
+      <h2 style="font-size:1.15rem">Handoff log — where the agent stops and you take over</h2>
+      <p class="sub" style="margin-top:8px">Career-Ops never submits for you. 🤖 agent does it · 🧑 you must (login, work-auth, final Submit) · ⛔ hard takeover (CAPTCHA/2FA, Submit). Steps the agent finished are marked ✓.</p>
+      <div class="legend"><span>🤖 <b>Agent</b></span><span>🧑 <b>You</b></span><span><span class="st block" style="padding:2px 6px">TAKEOVER</span> needs you</span></div>
+    </div>
+    <div id="ho-list"></div>
+  </div>
+  <div id="needs" class="hide">
+    <div class="ho-intro">
+      <h2 style="font-size:1.15rem">Needs You — the daily checklist</h2>
+      <p class="sub" style="margin-top:8px">The agent automates scan → score → tailor CV → pre-fill → queue. These are the things only you can answer. Tick one when you've answered it in chat — saved in this browser. High-impact answers unblock several roles at once.</p>
+    </div>
+    <div id="needs-list"></div>
+    <h2 style="font-size:1.15rem;margin:26px 0 12px">Apply queue — ready for your Submit</h2>
+    <div id="queue-list" class="list"></div>
+  </div>
+  <footer>Career-Ops · local dashboard · full reports in <span style="font-family:var(--mono)">reports/*.md</span> · tracker in <span style="font-family:var(--mono)">data/applications.md</span>. Nothing submitted.</footer>
+</div>
+<script>
+const ROLES = [{"num":3,"co":"ElevenLabs","role":"Forward Deployed Engineer – Software Engineer (USA)","score":4.5,"rec":"apply","lead":true,"arch":"Forward Deployed","loc":"US · Remote","legit":"High Confidence","comp":"~$180K+ base","match":"Voice-AI bullseye — your STC voice agent + VITS TTS + latency tuning map directly. FDE is a named target archetype.","gaps":["Public client-facing delivery examples help — lean on PROCIT STC rollout."],"strategy":"Lead with STC (voice agent, intent routing, escalation, live handoff). Block H draft answers in report.","verdict":"Top pick. US-remote removes every blocker, comp beats target, domain is your sharpest match.","ref":"reports/003-elevenlabs-fde-usa-2026-11-24.md"},{"num":19,"co":"Anthropic","role":"Applied AI Engineer, Commercial","score":4.5,"rec":"apply","lead":true,"arch":"Agentic / Applied AI","loc":"SF hybrid ✓","legit":"High Confidence","comp":"$280–320K","match":"Your MCP / agent-infra founder work (Smart365Guide) maps 1:1 to deploying Applied AI for commercial customers.","gaps":["Very competitive pipeline"],"strategy":"Lead Smart365Guide (MCP, execution layer) + shipped LLM apps. Block H draft answers already in report.","verdict":"New top-tier apply — bullseye, SF on-site OK, comp far above target.","ref":"reports/019-anthropic-commercial-2026-11-24.md"},{"num":17,"co":"Weights & Biases (CoreWeave)","role":"AI Engineer","score":4.4,"rec":"apply","arch":"Agentic / Automation","loc":"On-site NJ/NY/CA ✓","legit":"High Confidence","comp":"$188–275K","match":"JD almost mirrors Smart365Guide: agent logic, grounding, human-approval, audit trail, retrieval-vs-baseline, cost instrumentation.","gaps":["Go / Kubernetes / SRE depth","Confirm remote vs on-site"],"strategy":"Frame Smart365Guide as the exact product surface they're building. Cite 48.4% token-reduction benchmark.","verdict":"On-site now fine. Held just under 4.5 by Go/K8s gaps. Strong apply.","ref":"reports/017-coreweave-ai-engineer-2026-11-24.md"},{"num":11,"co":"n8n","role":"Forward Deployed Engineer – US East Coast","score":4.4,"rec":"apply","arch":"Forward Deployed","loc":"Remote · 30–50% travel","legit":"High Confidence","comp":"~$205K TC (est.)","match":"Founding-FDE maps directly to your agent-workflow-infra founder work + full-stack (TS/Next.js, FastAPI, integrations).","gaps":["30–50% travel — confirm you're OK with it"],"strategy":"Position Smart365Guide (SDK + execution layer + MCP) as proof you stand up agent workflows for clients fast.","verdict":"Excellent match, remote-friendly. Only question is travel tolerance.","ref":"reports/011-n8n-2026-11-24.md"},{"num":12,"co":"Anthropic","role":"Applied AI, Research Engineer","score":4.1,"rec":"apply","arch":"Agentic / LLMOps","loc":"25% SF/NYC on-site ✓","legit":"High Confidence","comp":"$300–400K + equity","match":"Strong LLM-products + evals + agent-alignment fit. REFUN research + applied product is the rare combo they want.","gaps":["6+ yr bar borderline (founder path counts)","Very competitive"],"strategy":"Bridge research rigor (REFUN: MoE CodeT5, 42.7% EM) with shipped products. No sponsorship needed — an edge.","verdict":"A reach, but on-theme and location-viable. Worth a strong, tailored application.","ref":"reports/012-anthropic-applied-ai-research-2026-11-24.md"},{"num":16,"co":"Bland AI","role":"Machine Learning Researcher, Multimodal LLMs","score":4.1,"rec":"apply","arch":"Voice / Agentic","loc":"Remote-eligible","legit":"Proceed w/ Caution","comp":"$160–280K","match":"Voice / real-time-agent fit (STC, VITS). Builder profile matches an early-stage voice-AI lab.","gaps":["Multimodal-LLM / neural-audio-codec research depth","Posting ~7 months old"],"strategy":"Lead voice-agent systems + fast prototyping. Acknowledge the research-depth stretch honestly.","verdict":"Solid remote apply. Verify the role is still open given posting age.","ref":"reports/016-bland-2026-11-24.md"},{"num":5,"co":"Decagon","role":"Research Engineer, Audio and Speech","score":4,"rec":"apply","arch":"Voice / Research","loc":"On-site SF/NYC ✓","legit":"High Confidence","comp":"$200–400K","match":"Best domain fit — voice agent + VITS TTS + latency tuning + research rigor align tightly.","gaps":["Pure speech-model research depth (your research is code-intelligence)"],"strategy":"Position voice-agent production experience + willingness to go deep on speech models.","verdict":"On-site now OK. Strong voice match; gap is audio-research specialization.","ref":"reports/005-decagon-2026-11-24.md"},{"num":8,"co":"Glean","role":"Software Engineer, Agentic Runtime","score":4,"rec":"apply","arch":"Agentic / Automation","loc":"On-site Mountain View ✓","legit":"High Confidence","comp":"$180–210K","match":"Runtime surface (tool execution, guardrails, session state, token budgets, LLM routing) maps ~1:1 onto Smart365Guide.","gaps":["K8s / OpenTelemetry / cloud-at-scale"],"strategy":"Agent-runtime strengths punch above the generic mid-level distributed-systems bar.","verdict":"On-site now OK. Conceptually your strongest agent-infra match.","ref":"reports/008-glean-agentic-runtime-2026-11-24.md"},{"num":6,"co":"Hume AI","role":"Senior/Staff AI Research Engineer","score":3.8,"rec":"maybe","arch":"Research / Voice","loc":"Remote OK","legit":"High Confidence","comp":"$180–350K","match":"Transformer fine-tuning (CodeT5 MoE) + audio-adjacent + research rigor.","gaps":["Large-scale distributed training infra","Audio-model building","Staff bar high"],"strategy":"Apply at Senior framing; emphasize fine-tuning + evals.","verdict":"Decent, remote, but training-infra gaps keep it below the apply line.","ref":"reports/006-humeai-2026-11-24.md"},{"num":22,"co":"Anthropic","role":"Applied AI Engineer, Startups (Physical AI)","score":3.8,"rec":"maybe","arch":"Applied AI","loc":"SF ✓","legit":"High Confidence","comp":"strong","match":"Strong AI half; machine-vision (Ishani CNN/YOLO, camera calibration) partially meets the 'built real hardware / physical discipline' bar.","gaps":["'Built physical/hardware' bar only partially met"],"strategy":"Lean on Ishani machine-vision + manufacturing inspection experience.","verdict":"Reasonable apply if you want the physical-AI vertical.","ref":"reports/022-anthropic-startups-physical-2026-11-24.md"},{"num":9,"co":"Glean","role":"AI Engineer – Quality and Post-Training","score":3.5,"rec":"skip","arch":"LLMOps / Post-training","loc":"Bay Area on-site ✓","legit":"High Confidence","comp":"$200–280K","match":"Strong evals / SFT fit; your active-learning loop is relevant to data/quality work.","gaps":["Core requirement is production RL post-training (PPO/DPO/GRPO) on weights","Clarified: your 'RL' is an automated self-training loop — not RLHF. Gap is real."],"strategy":"Not an apply unless you build genuine RLHF experience.","verdict":"Location OK, but the RL post-training requirement is a real gap. Skip.","ref":"reports/009-glean-post-training-2026-11-24.md"},{"num":7,"co":"Vercel","role":"Software Engineer, Agentic Infrastructure","score":3.5,"rec":"skip","arch":"Platform infra","loc":"—","legit":"High Confidence","comp":"$196–294K","match":"'Agentic' is branding; it's backend/platform infra (build/deploy pipeline, millions of builds/day).","gaps":["AWS + Terraform","Hyperscale distributed systems"],"strategy":"Only if you want a platform-infra pivot.","verdict":"Below target archetype. Skip unless infra is a deliberate direction.","ref":"reports/007-vercel-2026-11-24.md"},{"num":1,"co":"PolyAI","role":"Forward Deployed Engineer, Agentic AI","score":3.5,"rec":"skip","arch":"FDE / Voice","loc":"London · no visa ✗","legit":"High Confidence","comp":"—","match":"Elite skills fit (voice agents, evals, agentic) — a voice-agent company.","gaps":["London hybrid + no visa sponsorship for US-based candidate"],"strategy":"Geography, not level, caps it.","verdict":"Perfect domain, blocked on location + sponsorship. Skip unless UK-relocatable.","ref":"reports/001-polyai-2026-11-24.md"},{"num":14,"co":"Arize AI","role":"Applied AI Engineer","score":3.4,"rec":"maybe","arch":"DevRel / LLMOps","loc":"SF Bay ✓","legit":"High Confidence","comp":"—","match":"Technically capable (LLM evals/observability).","gaps":["Role is dev-advocacy/content-first (blogs, talks, community)","Little public content footprint"],"strategy":"Only if you want to build a public presence. Bay Area now OK.","verdict":"On-site unblocked, but the content/advocacy nature is the real mismatch.","ref":"reports/014-arize-2026-11-24.md"},{"num":23,"co":"Vercel","role":"DevRel Engineer, Agentic Infrastructure","score":3.4,"rec":"maybe","arch":"DevRel","loc":"US · Remote ✓","legit":"High Confidence","comp":"clears target","match":"Build skills (TS / Next.js / agents) fit; US-remote.","gaps":["Mandatory application artifact: a public thing that taught developers — missing","DevRel is off your primary AI-engineer axis"],"strategy":"Publish a teaching writeup / demo before applying.","verdict":"Pursue only after producing a public teaching artifact.","ref":"reports/023-vercel-devrel-2026-11-24.md"},{"num":18,"co":"Weights & Biases (CoreWeave)","role":"Senior Applied ML Engineer","score":3.4,"rec":"skip","arch":"RL / Post-training","loc":"On-site ✓","legit":"High Confidence","comp":"$182–242K","match":"CRAFT team: specialist RL post-training (ART/RULER/Serverless RL).","gaps":["RL/RLHF, distributed training, Megatron, CUDA are core requirements","Your work is an automation loop, not RL — gap stands"],"strategy":"Not a fit without genuine RL post-training + distributed-training experience.","verdict":"RL/distributed-training gap confirmed real. Recommend against.","ref":"reports/018-coreweave-senior-ml-2026-11-24.md"},{"num":2,"co":"ElevenLabs","role":"Applied AI Engineer","score":3.3,"rec":"skip","arch":"Growth / Agentic","loc":"Europe · GMT ✗","legit":"High Confidence","comp":"—","match":"Strong agent-builder match.","gaps":["Europe-only / GMT timezone","Growth/marketing-engineering domain"],"strategy":"Apply to their US FDE role instead.","verdict":"Skip — apply to ElevenLabs FDE USA instead.","ref":"reports/002-elevenlabs-applied-ai-2026-11-24.md"},{"num":10,"co":"Cohere","role":"Member of Technical Staff, Agentic Environments","score":3.2,"rec":"skip","arch":"Training infra / RL","loc":"US · on-site ✓","legit":"High Confidence","comp":"$175–325K + equity","match":"Frontier training-infra role (JAX/XLA/Ray/K8s/distributed + RL environments).","gaps":["Core stack is JAX/XLA/Ray/distributed + RL environments","Your 'RL' is an automation loop, not RL algorithms — core gap stands"],"strategy":"Skip unless you gain frontier training-infra + RL-environment experience.","verdict":"Skill gap confirmed real. Skip.","ref":"reports/010-cohere-2026-11-24.md"},{"num":13,"co":"Anthropic","role":"Applied AI Engineer, Startups","score":3.7,"rec":"skip","arch":"FDE / Agentic","loc":"London · UK visa ✗","legit":"High Confidence","comp":"£225–255K","match":"Excellent FDE/agent/eval skill fit — strongest skills of the London batch.","gaps":["London hybrid ≥25% + UK work authorization — you're US-based"],"strategy":"Only viable if you'd pursue UK right-to-work.","verdict":"Skills yes, geography no. Blocked on UK work authorization.","ref":"reports/013-anthropic-applied-ai-startups-2026-11-24.md"},{"num":21,"co":"Anthropic","role":"Forward Deployed Engineer","score":2.6,"rec":"skip","arch":"FDE","loc":"London · UK visa ✗","legit":"High Confidence","comp":"—","match":"Excellent skill match (MCP, sub-agents, Python).","gaps":["London UK; right-to-work unconfirmed"],"strategy":"Would be ~4.4 if relocation / work-auth were solved.","verdict":"Blocked on UK work authorization. Skip as posted.","ref":"reports/021-anthropic-fde-2026-11-24.md"},{"num":15,"co":"Intercom","role":"AI Infrastructure Engineer","score":3.1,"rec":"skip","arch":"Infra","loc":"London · visa ✗","legit":"High Confidence","comp":"~£140–200K","match":"Only training-adjacent proof is CodeT5 fine-tuning.","gaps":["CUDA/Triton, distributed training, K8s","London hybrid + visa"],"strategy":"Hard skills gaps plus geography.","verdict":"Weakest infra fit + blocked. Skip.","ref":"reports/015-intercom-2026-11-24.md"},{"num":4,"co":"Deepgram","role":"Applied ML Engineer – Edge Devices","score":2.7,"rec":"skip","arch":"Edge ML","loc":"US · Remote","legit":"High Confidence","comp":"$155–245K","match":"Voice domain + good comp + US-remote.","gaps":["Requires edge/non-NVIDIA deployment, quantization, ONNX/TFLite/NPU — all absent","JD states cloud/GPU-only 'does not qualify'"],"strategy":"Genuine skills mismatch — the JD gates you out.","verdict":"Recommend against. The edge/quantization requirement is a hard gate.","ref":"reports/004-deepgram-2026-11-24.md"},{"num":20,"co":"Anthropic","role":"Applied AI Engineer, Enterprise","score":1.8,"rec":"skip","arch":"Enterprise / Pre-sales","loc":"Munich · EU ✗","legit":"High Confidence","comp":"—","match":"AI skills present.","gaps":["Munich + fluent German 'essential'","EU work-auth unconfirmed","6-yr enterprise pre-sales track record absent"],"strategy":"Three stacked hard blockers.","verdict":"Skip — location + language + domain.","ref":"reports/020-anthropic-enterprise-2026-11-24.md"},{"num":29,"co":"Weights & Biases (CoreWeave)","role":"Senior Forward Deployed Engineer, AI Agents","score":4.5,"rec":"apply","lead":true,"arch":"FDE / Agentic","loc":"Bay Area / on-site ✓","legit":"High Confidence","comp":"$182–242K","match":"Dream-fit: FDE + agentic; Weave eval/instrumentation matches your REFUN / Smart365Guide rigor. RL only 'preferred' — no gap.","gaps":["Fast client-delivery pace"],"strategy":"Lead agent delivery + eval instrumentation. Block H draft answers in report.","verdict":"Top-tier apply. FDE + agentic + eval rigor, Bay Area OK.","ref":"reports/029-coreweave-senior-fde-agents-2026-11-24.md"},{"num":30,"co":"Weights & Biases (CoreWeave)","role":"Software and AI Engineer","score":4.2,"rec":"apply","arch":"Agentic / Full-stack","loc":"Bellevue/Sunnyvale on-site ✓","legit":"High Confidence","comp":"$153–204K","match":"Agents (LangChain/LangGraph) + full-stack (React/Node/FastAPI) internal tooling — strong skill match.","gaps":["Go (nice-to-have)","iPaaS/ERP domain (nice-to-have)"],"strategy":"Lead full-stack + agent tooling.","verdict":"Worth applying — soft gaps only.","ref":"reports/030-coreweave-software-ai-2026-11-24.md"},{"num":33,"co":"Intercom (Fin / Salesforce)","role":"Forward Deployed Engineer","score":4.4,"rec":"apply","arch":"Forward Deployed","loc":"NYC hybrid ✓","legit":"High Confidence","comp":"$180–237K + OTE + RSUs","match":"Fin = AI support agent, near-1:1 with your STC voice agent (routing/escalation/handoff). US work-eligibility required and you qualify.","gaps":["NYC hybrid 3 days (relocation; not penalized)"],"strategy":"Map STC → Fin agent delivery.","verdict":"Clean FDE fit, US-eligible. Worth applying.","ref":"reports/033-intercom-fde-2026-11-24.md"},{"num":35,"co":"Palantir","role":"Forward Deployed AI Engineer","score":4.4,"rec":"apply","arch":"Forward Deployed","loc":"NY hybrid ✓","legit":"High Confidence","comp":"$135–200K + RSUs","match":"Textbook FDE — founder 'startup-CTO' delivery + GenAI/LLM workflows to prod. NY hybrid, no clearance.","gaps":["Fast-paced client delivery"],"strategy":"Lead founder delivery + GenAI prod workflows.","verdict":"Best of the Palantir batch. Apply.","ref":"reports/035-palantir-fde-ai-2026-11-24.md"},{"num":38,"co":"Weights & Biases (CoreWeave)","role":"Senior Deployment Engineer – LLM Inference & Optimization","score":3.2,"rec":"skip","arch":"Inference / Serving","loc":"Bellevue/SF/Sunnyvale ✓","legit":"High Confidence","comp":"~$139–242K","match":"Evals + customer-delivery half fits.","gaps":["Serving-framework / GPU internals (vLLM/SGLang/TensorRT-LLM, KV-cache/quantization/CUDA, multi-GPU)"],"strategy":"Apply only with a vLLM/quantization proof project.","verdict":"Core serving/GPU gap. Not now.","ref":"reports/038-coreweave-deployment-llm-inference-2026-11-24.md"},{"num":36,"co":"Palantir","role":"Software Engineer – Applied AI, Defense Applications","score":3,"rec":"skip","arch":"Applied AI / Defense","loc":"US · clearance","legit":"High Confidence","comp":"—","match":"Strong agent/eval fit.","gaps":["Active US security clearance or eligibility (usually US citizenship — your status unstated)","React-primary","defense domain"],"strategy":"Confirm clearance eligibility first.","verdict":"Gated on clearance. Confirm eligibility before applying.","ref":"reports/036-palantir-applied-ai-defense-2026-11-24.md"},{"num":31,"co":"Weights & Biases (CoreWeave)","role":"Staff Machine Learning Engineer, AI Insights","score":2.8,"rec":"skip","arch":"ML / Observability","loc":"NYC","legit":"Proceed w/ Caution","comp":"—","match":"Eval-methodology strength.","gaps":["Staff seniority","observability/telemetry time-series ML domain","distributed-systems gaps"],"strategy":"Over-reach.","verdict":"Do not apply — seniority + domain + distributed gaps.","ref":"reports/031-coreweave-staff-ml-insights-2026-11-24.md"},{"num":37,"co":"Palantir","role":"Software Engineer – Edge AI Systems","score":2.8,"rec":"skip","arch":"Edge AI / Defense","loc":"US · clearance","legit":"High Confidence","comp":"—","match":"Agent/eval strengths.","gaps":["Clearance required","edge/accelerator optimization (TVM/TF Lite, quantization)","Rust/C++","weapons/UxV domain"],"strategy":"Core gap + clearance.","verdict":"Low priority — clearance + edge gap.","ref":"reports/037-palantir-edge-ai-2026-11-24.md"},{"num":34,"co":"Intercom","role":"GTM Engineer (Applied AI)","score":2.6,"rec":"skip","arch":"GTM / Applied AI","loc":"Dublin/London ✗","legit":"High Confidence","comp":"—","match":"Strong skills (LLM agents, evals, guardrails).","gaps":["Dublin/London hybrid ≥3 days — UK/EU work-auth blocker"],"strategy":"Apply to US Intercom roles instead.","verdict":"Skip — geo. Pursue US Intercom FDE instead.","ref":"reports/034-intercom-gtm-applied-ai-2026-11-24.md"},{"num":32,"co":"Cohere","role":"Forward Deployed Engineer, Infrastructure Specialist (NA)","score":2.3,"rec":"skip","arch":"Infra","loc":"Canada offices ✗","legit":"Proceed w/ Caution","comp":"—","match":"Some FDE overlap.","gaps":["Prod K8s + Helm + multi-cloud/networking — off your build-focused lane","Canadian offices + likely US work-auth blocker"],"strategy":"Off-lane + geo.","verdict":"Not recommended — infra-specialist + Canada work-auth.","ref":"reports/032-cohere-fde-na-2026-11-24.md"},{"num":25,"co":"Glean","role":"Founding Forward Deployed Engineer","score":4.4,"rec":"apply","arch":"Forward Deployed","loc":"NYC hybrid ✓ · 25–50% travel","legit":"High Confidence","comp":"$160–270K","match":"FDE target archetype; 'founders strongly encouraged'. Your founder delivery fits directly.","gaps":["NYC hybrid + 25–50% travel","Thin enterprise C-suite track record"],"strategy":"Lead founder + fast client delivery.","verdict":"Best fit of the Glean batch. Apply.","ref":"reports/025-glean-founding-fde-2026-11-24.md"},{"num":24,"co":"Glean","role":"AI Engineer, Data and Evals","score":4.3,"rec":"apply","arch":"LLMOps / Evals","loc":"Bay hybrid ✓","legit":"High Confidence","comp":"$200–280K","match":"REFUN eval rigor + Cytible groundedness map directly to the verifier / data-quality work.","gaps":["~4–5 yrs vs 5+ req (soft)"],"strategy":"Lead eval methodology + grounded retrieval.","verdict":"Strong LLMOps/evals fit. Apply.","ref":"reports/024-glean-data-evals-2026-11-24.md"},{"num":26,"co":"Glean","role":"Machine Learning Engineer, Enterprise Brain","score":3.7,"rec":"maybe","arch":"ML","loc":"Bay ✓","legit":"High Confidence","comp":"$215–300K","match":"Strong on eval/benchmarking/data-quality.","gaps":["6+ yrs industry-ML + ranking-at-scale gap"],"strategy":"Apply only if the team values eval depth over tenure.","verdict":"Borderline — tenure/ranking gap.","ref":"reports/026-glean-enterprise-brain-2026-11-24.md"},{"num":28,"co":"Decagon","role":"Senior Research Engineer, Audio and Speech","score":3.3,"rec":"maybe","arch":"Voice / Research","loc":"SF/NY on-site ✓","legit":"Proceed w/ Caution","comp":"$200–400K","match":"VITS TTS + production voice agent + latency tuning is a genuine hook.","gaps":["Training modern speech models (diffusion/flow-matching/codec, full-duplex) is a real gap"],"strategy":"The junior Decagon audio role is the better target.","verdict":"Partial fit — speech-research core is a gap.","ref":"reports/028-decagon-senior-audio-2026-11-24.md"},{"num":27,"co":"n8n","role":"Staff Platform Engineer, Agentic Engineering","score":2.5,"rec":"skip","arch":"Platform / DevEx","loc":"EU/UK auth ✗","legit":"High Confidence","comp":"—","match":"Agent-infra theme overlaps.","gaps":["EU/UK work-auth blocker (sponsorship only to Germany)","Staff DevEx-platform-leadership scope mismatch"],"strategy":"Gated on work-auth.","verdict":"Don't pursue without EU/UK right-to-work.","ref":"reports/027-n8n-staff-platform-2026-11-24.md"}];
+const ACTIVITY = [{"ts":"2026-11-24T00:10:00","ic":"🛰️","t":"Scanned 80 company portals","d":"909 live roles discovered via Greenhouse / Ashby / Lever APIs (zero-token)."},{"ts":"2026-11-24T00:30:00","ic":"🔎","t":"Liveness-checked the shortlist","d":"16 active, 2 (CoreWeave) JS-rendered/uncertain."},{"ts":"2026-11-24T01:00:00","ic":"🧪","t":"Evaluated first 18 roles (A–G) across 5 parallel workers","d":"Honest fit scoring; reports + tracker entries written."},{"ts":"2026-11-24T01:20:00","ic":"✏️","t":"Applied your corrections","d":"Bay Area on-site OK (un-gated onsite roles); 'RL' clarified as automated active-learning, not RLHF — 3 RL roles stay skip."},{"ts":"2026-11-24T01:25:00","ic":"📄","t":"Updated cv.md","d":"Added truthful document-AI active-learning bullet to Smart365Guide (no invented metric)."},{"ts":"2026-11-24T01:50:00","ic":"🧪","t":"Evaluated 20 more roles — 38 total","d":"New apply-worthy: Anthropic Commercial 4.5, CoreWeave Sr FDE 4.5, Glean Founding FDE 4.4, Intercom Fin FDE 4.4, Palantir FDE 4.4, Glean Data&Evals 4.3, CoreWeave Software+AI 4.2."},{"ts":"2026-11-24T01:52:00","ic":"📝","t":"Generated 3 tailored ATS CVs","d":"ElevenLabs FDE, CoreWeave AI Engineer, n8n FDE — 2-page letter PDFs in output/. Truthful keyword match (K8s/Go not claimed)."},{"ts":"2026-11-24T01:55:00","ic":"📊","t":"Merged tracker + built this dashboard","d":"Pipeline clean (0 errors); 14 roles apply-worthy (≥4.0)."}];
+const AGENT_DONE = {"3":[0,1],"17":[0,1],"11":[0,1]}; // CVs generated by agent
+const CV_READY = {"3":1,"17":1,"11":1};               // tailored CVs made
+const SUBMITTED = {};                                  // nums you've submitted
+const NEEDS = [
+  {id:"A1",cat:"High-impact",q:"UK right-to-work? (can you legally work in the UK?)",impact:"Unblocks Anthropic FDE London (~2.6→4.4), Anthropic Startups (3.7), PolyAI (3.5), Intercom London (3.1)"},
+  {id:"A2",cat:"High-impact",q:"EU right-to-work (esp. Germany)?",impact:"Unblocks n8n Staff Platform (2.5), Intercom Dublin (2.6), ElevenLabs EU (3.3)"},
+  {id:"A3",cat:"High-impact",q:"US citizenship / security-clearance eligibility?",impact:"Unblocks Palantir Defense (3.0) + Edge AI (2.8)"},
+  {id:"A4",cat:"High-impact",q:"OK with 30–50% customer travel?",impact:"Confirms n8n FDE (4.4), Glean Founding FDE (4.4)"},
+  {id:"A5",cat:"High-impact",q:"Is NYC relocation OK? (Bay Area already = yes)",impact:"Confirms Decagon, Glean, CoreWeave NYC, Intercom Fin NYC"},
+  {id:"A6",cat:"High-impact",q:"Is $160K your floor? Many roles pay $180–400K — raise target?",impact:"Sets negotiation + filtering"},
+  {id:"B1",cat:"Positioning",q:"Any public blogs / talks / OSS / case studies?",impact:"Required for Arize (3.4) + Vercel DevRel (3.4); strengthens all apps"},
+  {id:"B2",cat:"Positioning",q:"Which products have you actually used? (ElevenLabs, Glean, n8n, Cohere, Claude, Vercel, W&B)",impact:"Answers 'have you used X?' app questions truthfully"},
+  {id:"C1",cat:"Live now",q:"ElevenLabs: answer essay 4 in the open window, then click Submit",impact:"Finishes application #1"},
+];
+const RECLABEL={apply:"APPLY",skip:"SKIP",maybe:"MAYBE"};
+const scoreColor=s=>s>=4.0?"var(--good)":s>=3.6?"var(--warn)":s>=3.0?"var(--pending)":"var(--bad)";
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let curFilter='all';
+
+function renderTiles(){
+  const c={apply:0,maybe:0,skip:0};ROLES.forEach(r=>{if(c[r.rec]!=null)c[r.rec]++;});
+  document.getElementById('tiles').innerHTML=[
+    {n:ROLES.length,l:"Roles evaluated",k:""},
+    {n:c.apply,l:"Apply-worthy (≥4.0)",k:"good"},
+    {n:c.maybe,l:"Borderline",k:"pending"},
+    {n:c.skip,l:"Skip",k:"bad"},
+  ].map(t=>`<div class="tile ${t.k}"><div class="n">${t.n}</div><div class="l">${t.l}</div></div>`).join('');
+}
+function renderBoard(){
+  const board=document.getElementById('board');
+  const rs=ROLES.slice().sort((a,b)=>b.score-a.score).filter(r=>curFilter==='all'||r.rec===curFilter);
+  board.innerHTML='';
+  rs.forEach((r,i)=>{
+    const el=document.createElement('div');el.className='card'+(r.lead?' lead':'');
+    el.innerHTML=`<button class="row" aria-expanded="false">
+      <span class="rank">${i+1}</span>
+      <span style="min-width:0"><span class="co">${esc(r.co)}</span><span class="role">${esc(r.role)}</span>
+        <span class="meta"><span class="chip">${esc(r.arch)}</span><span class="chip">${esc(r.loc)}</span>${r.comp?`<span class="chip">${esc(r.comp)}</span>`:''}</span></span>
+      <span class="right"><span class="score" style="color:${scoreColor(r.score)}">${r.score.toFixed(1)}<small>/ 5</small></span>
+        <span class="rec ${r.rec}">${RECLABEL[r.rec]||r.rec}</span><span class="caret">▶</span></span></button>
+      <div class="detail"><div class="dgrid">
+        <div class="dblock wide"><div class="k">Why it fits</div><div class="v">${esc(r.match)}</div></div>
+        <div class="dblock wide"><div class="k">Gaps / blockers</div><ul class="gaps v" style="margin:0;padding-left:18px">${(r.gaps||[]).map(g=>`<li>${esc(g)}</li>`).join('')}</ul></div>
+        <div class="dblock"><div class="k">Legitimacy</div><div class="v">${esc(r.legit)}</div></div>
+        <div class="dblock"><div class="k">Strategy</div><div class="v">${esc(r.strategy)}</div></div></div>
+        <div class="verdict"><b>Verdict.</b> ${esc(r.verdict)}</div>
+        <div class="reportref">full A–G report → ${esc(r.ref||'')}</div></div>`;
+    const row=el.querySelector('.row');row.addEventListener('click',()=>{const o=el.classList.toggle('open');row.setAttribute('aria-expanded',o);});
+    board.appendChild(el);
+  });
+}
+function fmtTs(s){try{return new Date(s).toLocaleString(undefined,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});}catch(e){return s;}}
+function renderActivity(){
+  const evs=ACTIVITY.slice().sort((a,b)=>String(b.ts).localeCompare(String(a.ts)));
+  document.getElementById('feed').innerHTML=evs.map(e=>`<div class="ev"><span class="ic">${esc(e.ic||'•')}</span>
+    <span><span class="t">${esc(e.t)}</span><span class="d">${esc(e.d||'')}</span></span>
+    <span class="ts">${esc(fmtTs(e.ts))}</span></div>`).join('');
+}
+function steps(){return [
+  {o:"🤖",s:"agent",t:"Open posting & confirm requirements",d:"Verify live, pull screening questions"},
+  {o:"🤖",s:"agent",t:"Generate tailored ATS CV (PDF)",d:"Keyword-matched, truthful rewording only"},
+  {o:"🤖",s:"agent",t:"Draft screening-question answers",d:"You review & edit before use"},
+  {o:"🧑",s:"human",t:"Create account / log in on careers site",d:"Credentials — I can't hold these"},
+  {o:"🤖",s:"agent",t:"Autofill fields + attach CV",d:"I fill what the form exposes"},
+  {o:"🧑",s:"human",t:"Work-authorization & sponsorship attestation",d:"Personal legal statement — you confirm"},
+  {o:"🧑",s:"human",t:"EEO / demographic questions",d:"Optional & personal"},
+  {o:"🧑",s:"block",t:"CAPTCHA / email verification / 2FA",d:"If it appears, I stop and hand to you"},
+  {o:"🧑",s:"human",t:"Final review of the whole application",d:"Last check before anything leaves"},
+  {o:"🧑",s:"block",t:"SUBMIT",d:"Always you. Career-ops never clicks Submit."},
+];}
+function key(num,i){return 'ho-'+num+'-'+i;}
+function isDone(num,i){
+  if((AGENT_DONE[num]||[]).indexOf(i)>=0)return 'agent';
+  try{if(localStorage.getItem(key(num,i)))return 'you';}catch(e){}
+  return false;
+}
+function renderHandoff(){
+  const list=document.getElementById('ho-list');list.innerHTML='';
+  ROLES.filter(r=>r.rec==='apply').sort((a,b)=>b.score-a.score).forEach(r=>{
+    const st=steps();const ndone=st.filter((_,i)=>isDone(r.num,i)).length;
+    const wrap=document.createElement('div');wrap.className='ho-role';
+    wrap.innerHTML=`<div class="ho-head"><span class="t">${esc(r.co)} — <span style="color:var(--muted);font-weight:500">${esc(r.role)}</span></span><span class="chip">${ndone}/${st.length} steps</span></div>
+      <ul class="steps">${st.map((s,i)=>{const d=isDone(r.num,i);
+        return `<li class="step${d?' done':''}"><input type="checkbox" id="s${r.num}-${i}" ${d?'checked':''} ${d==='agent'?'disabled':''} data-num="${r.num}" data-i="${i}">
+          <span class="owner">${s.o}</span>
+          <label class="txt" for="s${r.num}-${i}">${esc(s.t)}<small>${esc(s.d)}</small>${d==='agent'?' <span class="byagent">✓ done by agent</span>':''}</label>
+          <span class="st ${s.s}">${s.s==='agent'?'AGENT':s.s==='block'?'TAKEOVER':'YOU'}</span></li>`;}).join('')}</ul>`;
+    list.appendChild(wrap);
+  });
+  list.querySelectorAll('input[type=checkbox]:not([disabled])').forEach(cb=>cb.addEventListener('change',()=>{
+    try{localStorage.setItem(key(cb.dataset.num,cb.dataset.i),cb.checked?'1':'');}catch(e){}
+    if(!cb.checked){try{localStorage.removeItem(key(cb.dataset.num,cb.dataset.i));}catch(e){}}
+    renderHandoff();
+  }));
+}
+function renderNeeds(){
+  const list=document.getElementById('needs-list');
+  let html='', lastCat='';
+  NEEDS.forEach(n=>{
+    if(n.cat!==lastCat){html+=`<div class="dblock" style="margin:14px 0 2px"><div class="k">${esc(n.cat)}</div></div>`;lastCat=n.cat;}
+    let done=false;try{done=!!localStorage.getItem('need-'+n.id);}catch(e){}
+    html+=`<div class="ho-role"><div class="step${done?' done':''}" style="grid-template-columns:26px 1fr">
+      <input type="checkbox" id="n${n.id}" ${done?'checked':''} data-id="${n.id}">
+      <label class="txt" for="n${n.id}"><b>${esc(n.id)}.</b> ${esc(n.q)}<small>${esc(n.impact)}</small></label></div></div>`;
+  });
+  list.innerHTML=html;
+  list.querySelectorAll('input[type=checkbox]').forEach(cb=>cb.addEventListener('change',()=>{
+    try{cb.checked?localStorage.setItem('need-'+cb.dataset.id,'1'):localStorage.removeItem('need-'+cb.dataset.id);}catch(e){}
+    renderNeeds();
+  }));
+}
+function renderQueue(){
+  const q=document.getElementById('queue-list');
+  const apply=ROLES.filter(r=>r.rec==='apply').sort((a,b)=>b.score-a.score);
+  q.innerHTML=apply.map(r=>{
+    const cv=CV_READY[r.num]?'<span class="rec apply">CV ready</span>':'<span class="chip">CV to make</span>';
+    const sub=SUBMITTED[r.num]?'<span class="rec apply">Submitted</span>':'<span class="chip">You submit</span>';
+    return `<div class="card"><div class="row" style="cursor:default">
+      <span class="rank">${r.score.toFixed(1)}</span>
+      <span style="min-width:0"><span class="co">${esc(r.co)}</span><span class="role">${esc(r.role)}</span></span>
+      <span class="right">${cv} ${sub}</span></div></div>`;
+  }).join('');
+}
+function showView(v){
+  document.querySelectorAll('#view button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===v));
+  document.getElementById('board').classList.toggle('hide',v!=='board');
+  document.getElementById('activity').classList.toggle('hide',v!=='activity');
+  document.getElementById('handoff').classList.toggle('hide',v!=='handoff');
+  document.getElementById('needs').classList.toggle('hide',v!=='needs');
+  document.querySelector('#filter').style.visibility=v==='board'?'visible':'hidden';
+}
+document.getElementById('view').addEventListener('click',e=>{const b=e.target.closest('button');if(b)showView(b.dataset.v);});
+document.getElementById('filter').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+  document.querySelectorAll('#filter button').forEach(x=>x.setAttribute('aria-pressed',x===b));curFilter=b.dataset.f;renderBoard();});
+renderTiles();renderBoard();renderActivity();renderHandoff();renderNeeds();renderQueue();
+</script>
+</body>
+</html>

@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Career-Ops</title>
+<style>
+  :root{--bg:#f4f5f7;--surface:#fff;--surface-2:#eef0f4;--fg:#1a1d24;--muted:#5b6472;--line:#dfe3ea;
+    --accent:#0e7c86;--accent-2:#6d4a96;--good:#1f8a4c;--warn:#b5720e;--bad:#b23b3b;--pending:#8a6d1f;--radius:12px;
+    --font:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;--head:"Space Grotesk","Inter",system-ui,sans-serif;--mono:ui-monospace,Menlo,monospace;}
+  @media (prefers-color-scheme:dark){:root{--bg:#13161c;--surface:#1b1f27;--surface-2:#222731;--fg:#e8ebf0;--muted:#9aa4b2;--line:#2c333f;
+    --accent:#3bb7c2;--accent-2:#a98bdc;--good:#49c57e;--warn:#e0a63c;--bad:#e46d6d;--pending:#d8b34a;color-scheme:dark;}}
+  *{box-sizing:border-box}body{background:var(--bg);color:var(--fg);font-family:var(--font);line-height:1.5;margin:0;font-variant-numeric:tabular-nums}
+  .wrap{max-width:1040px;margin:0 auto;padding:24px 16px 64px}
+  h1,h2,h3{font-family:var(--head);margin:0}h1{font-size:1.5rem;font-weight:700}
+  .top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+  .eyebrow{font-family:var(--head);text-transform:uppercase;letter-spacing:.09em;font-size:.72rem;color:var(--accent);font-weight:600}
+  .sub{color:var(--muted);font-size:.9rem;margin:4px 0 0}
+  .btn{font:inherit;font-weight:600;font-size:.86rem;padding:9px 15px;border-radius:9px;border:1px solid var(--line);background:var(--surface);color:var(--fg);cursor:pointer}
+  .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .btn:disabled{opacity:.55;cursor:default}
+  .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:12px;margin:20px 0 6px}
+  .tile{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:13px 15px}
+  .tile .n{font-family:var(--head);font-size:1.6rem;font-weight:700;line-height:1}.tile .l{color:var(--muted);font-size:.76rem;margin-top:5px}
+  .tile.good .n{color:var(--good)}.tile.pending .n{color:var(--pending)}.tile.bad .n{color:var(--bad)}
+  .bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:22px 0 14px;border-bottom:1px solid var(--line);padding-bottom:12px}
+  .seg{display:inline-flex;background:var(--surface-2);border:1px solid var(--line);border-radius:999px;padding:3px;flex-wrap:wrap}
+  .seg button{font:inherit;font-size:.83rem;border:0;background:transparent;color:var(--muted);padding:6px 12px;border-radius:999px;cursor:pointer}
+  .seg button[aria-pressed=true]{background:var(--surface);color:var(--fg);font-weight:600}
+  .spacer{flex:1 1 auto}.list{display:flex;flex-direction:column;gap:9px}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}.card.lead{border-color:var(--accent)}
+  .row{display:grid;grid-template-columns:34px 1fr auto;gap:12px;align-items:center;padding:13px 15px;cursor:pointer;width:100%;border:0;background:transparent;color:inherit;font:inherit;text-align:left}
+  .rank{font-family:var(--head);font-weight:700;color:var(--muted);text-align:center}
+  .co{font-family:var(--head);font-weight:600;font-size:1rem}.role{color:var(--muted);font-size:.84rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .meta{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}.chip{font-size:.7rem;padding:2px 8px;border-radius:999px;background:var(--surface-2);border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+  .right{display:flex;align-items:center;gap:10px}.score{font-family:var(--head);font-weight:700;font-size:1.2rem}.score small{display:block;font-size:.58rem;color:var(--muted)}
+  .rec{font-size:.7rem;font-weight:700;padding:4px 8px;border-radius:7px;white-space:nowrap}
+  .rec.apply{background:color-mix(in srgb,var(--good) 16%,transparent);color:var(--good)}
+  .rec.skip{background:color-mix(in srgb,var(--bad) 14%,transparent);color:var(--bad)}
+  .rec.maybe{background:color-mix(in srgb,var(--warn) 15%,transparent);color:var(--warn)}
+  .detail{border-top:1px solid var(--line);padding:4px 15px 16px;display:none;background:var(--surface-2)}.card.open .detail{display:block}
+  .dgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-top:12px}
+  .k{font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;color:var(--accent);font-weight:600;margin-bottom:3px}.v{font-size:.88rem}.wide{grid-column:1/-1}
+  .verdict{font-size:.9rem;background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:8px;padding:10px 12px;margin-top:12px}
+  .qacts{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+  .qbtn{font:inherit;font-size:.82rem;font-weight:600;text-decoration:none;cursor:pointer;padding:8px 14px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--text)}
+  .qbtn:hover{border-color:var(--accent)}
+  .qbtn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  .card.done{opacity:.5}
+  .chatlog{display:flex;flex-direction:column;gap:12px;margin:14px 0;max-height:52vh;overflow-y:auto}
+  .msg{display:flex;flex-direction:column;gap:3px;max-width:88%}
+  .msg.user{align-self:flex-end;align-items:flex-end}.msg.assistant{align-self:flex-start}
+  .msg .who{font-size:.72rem;color:var(--muted);font-weight:600}
+  .msg .bub{padding:10px 13px;border-radius:12px;font-size:.9rem;line-height:1.5;white-space:pre-wrap;border:1px solid var(--line)}
+  .msg.user .bub{background:var(--accent);border-color:var(--accent);color:#fff}
+  .msg.assistant .bub{background:var(--surface-2)}
+  .askbar{display:flex;gap:8px;align-items:flex-end}
+  .askbar textarea{flex:1;min-height:60px;resize:vertical;font:inherit;font-size:.9rem;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--text)}
+  .ev{display:grid;grid-template-columns:28px 1fr auto;gap:11px;padding:12px 2px;border-bottom:1px solid var(--line)}.ev .ic{text-align:center}.ev .t{font-weight:600;font-size:.9rem}.ev .d{color:var(--muted);font-size:.83rem;margin-top:2px}.ev .ts{color:var(--muted);font-size:.72rem;font-family:var(--mono);white-space:nowrap}
+  .need{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;margin-bottom:10px}
+  .need.done{opacity:.6}.need .q{font-weight:600}.need .q b{color:var(--accent)}.need .imp{color:var(--muted);font-size:.82rem;margin:4px 0 8px}
+  .need textarea{width:100%;font:inherit;font-size:.9rem;padding:9px 11px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg);min-height:52px;resize:vertical}
+  .need .act{display:flex;gap:8px;margin-top:8px;align-items:center}
+  .catlabel{font-family:var(--head);font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:16px 0 8px;font-weight:600}
+  table{width:100%;border-collapse:collapse;font-size:.84rem}th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}th{color:var(--muted);font-weight:600;font-size:.74rem;text-transform:uppercase;letter-spacing:.04em}
+  .toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:9px;font-size:.86rem;opacity:0;transition:.2s;pointer-events:none}
+  .toast.show{opacity:1}.hide{display:none!important}.dot{width:8px;height:8px;border-radius:50%;background:var(--good);display:inline-block;box-shadow:0 0 0 3px color-mix(in srgb,var(--good) 25%,transparent)}
+  footer{margin-top:30px;color:var(--muted);font-size:.78rem;border-top:1px solid var(--line);padding-top:14px}
+  @media(max-width:520px){.row{grid-template-columns:26px 1fr}.right{grid-column:1/-1;padding-left:34px}}
+</style>
+<link rel="stylesheet" href="/workspace.css">
+</head>
+<body>
+<aside class="sidebar"><a class="brand" href="/" aria-label="Career Ops home"><span class="brand-icon">↗</span> career<span>ops</span><small>YOUR NEXT CHAPTER</small></a><div class="nav-caption">WORKSPACE</div><nav aria-label="Main navigation"><button class="nav-link active" id="nav-home"><span>◈</span> Overview</button><button class="nav-link" id="nav-pipeline"><span>▤</span> Application pipeline</button><button class="nav-link" id="nav-profile"><span>◎</span> My profile</button></nav><div class="sidebar-bottom"><div class="local-badge"><i></i> Local workspace</div><p>Your information stays<br>in this project.</p><span class="sidebar-avatar" id="side-avatar">CO</span><span id="side-name">Your workspace</span></div></aside>
+<main class="workspace" id="home">
+  <header class="workspace-header"><span>Workspace <span class="breadcrumb">/ Overview</span></span><span class="privacy-label">◉ &nbsp; Private by default</span></header>
+  <div class="workspace-content">
+    <div class="page-heading"><div><div class="eyebrow">LESS SEARCHING. MORE POSSIBILITY.</div><h1>Your next move, on autopilot.</h1><p class="sub">A little about you. Your CV. A search that works in the background.</p></div><span class="version-tag">CAREER OS <span>01</span></span></div>
+    <section class="intro-banner"><div><span class="mini-label">YOUR SEARCH, CONNECTED</span><h2>Set the direction.<br>We’ll find the opportunities.</h2><p>Discover roles, build a shortlist, and get ready to apply.<br>You stay in control of every application.</p><div class="banner-tags"><span>✓ Personalized targets</span><span>✓ Live portal scans</span><span>✓ Review-ready packets</span></div></div><div class="orbit" aria-hidden="true"><div class="orbit-center">↗</div><span class="orbit-pill p1">◎ &nbsp; Your profile</span><span class="orbit-pill p2">▤ &nbsp; Your CV</span><span class="orbit-pill p3">✧ &nbsp; New opportunities</span></div></section>
+    <section class="setup-card" id="setup-card" aria-labelledby="setup-title"><div class="section-heading"><div><span class="eyebrow">GET STARTED</span><h2 id="setup-title">Make this workspace yours</h2></div><span class="muted" id="step-count">Step 1 of 3</span></div>
+      <ol class="setup-steps"><li class="current"><span>1</span> About you</li><li><span>2</span> Your CV</li><li><span>3</span> Launch search</li></ol>
+      <form id="setup-form">
+        <div class="setup-panel" data-step="0"><h3>First, the essentials.</h3><p class="muted">Tell us who you are and where you want to go.</p><div class="form-grid">
+          <label>Full name <input name="fullName" required autocomplete="name" placeholder="Your full name" maxlength="200"></label><label>Email address <input name="email" type="email" required autocomplete="email" placeholder="you@example.com"></label>
+          <label>Location <input name="location" required placeholder="City, country" autocomplete="address-level2"></label><label>Work preference <select name="workMode"><option>Remote</option><option>Hybrid</option><option>On-site</option><option>Flexible</option></select></label>
+          <label class="full">Target roles <input name="roles" required placeholder="AI Engineer, Software Engineer, Research Scientist"><small>Separate multiple roles with commas.</small></label><label>Compensation target <input name="salary" placeholder="e.g. $140,000–180,000 USD"></label><label>Timezone <input name="timezone" placeholder="America/New_York" required></label>
+        </div></div>
+        <div class="setup-panel hide" data-step="1"><h3>Your experience is the starting point.</h3><p class="muted">Upload a text-based CV or paste it below. Review the extracted text before continuing.</p><label class="upload-zone" id="drop-zone"><input id="cv-upload" type="file" accept=".pdf,.md,.txt"><span class="upload-icon">↥</span><strong id="upload-label">Drop your CV here, or browse files</strong><span>PDF, Markdown, or TXT · up to 5 MB</span></label><label class="reuse-cv hide" id="reuse-wrap"><input type="checkbox" id="reuse-cv"> Use the CV already saved in this workspace</label><label>CV text <textarea id="cv-text" rows="9" placeholder="Paste your CV here, or upload a file above…" maxlength="300000"></textarea><small id="cv-count">Your original information is preserved. No experience or metrics are invented.</small></label></div>
+        <div class="setup-panel hide" data-step="2"><h3>You set the pace.</h3><p class="muted">We’ll scan your configured company portals and prepare new discoveries for review.</p><div id="setup-summary" class="setup-summary"></div><div class="form-grid"><label>Scan frequency <select name="intervalHours"><option value="0">Run once</option><option value="6">Every 6 hours</option><option value="12">Every 12 hours</option><option value="24" selected>Every day</option><option value="72">Every 3 days</option></select></label><label>Key skills <input name="skills" placeholder="Python, React, LLMs…"></label><label class="full">Deal-breakers & preferences <textarea name="dealbreakers" rows="2" placeholder="Visa sponsorship, preferred industries, company size…"></textarea></label></div><div class="review-note"><span>◎</span><p><strong>Automation with you in control.</strong> Discovery and review packets run automatically. Title matches are preliminary; full fit, salary, skills, and eligibility need review. You review and submit applications. Keep the local server running for scheduled scans.</p></div></div>
+        <div id="setup-error" class="form-error hide" role="alert"></div><div class="form-actions"><span class="muted" id="setup-help">A few details. A more focused search.</span><div><button type="button" class="btn hide" id="setup-back">Back</button><button type="submit" class="btn primary" id="setup-next">Continue <span>→</span></button></div></div>
+      </form>
+    </section>
+    <section class="automation-card hide" id="automation-card"><div class="section-heading"><div><span class="eyebrow">YOUR SEARCH ENGINE</span><h2 id="workflow-heading">Ready when you are</h2><p class="muted" id="workflow-detail"></p></div><div class="automation-actions"><button class="btn" id="edit-profile">Edit profile</button><button class="btn" id="pause-auto">Pause</button><button class="btn primary" id="run-auto">Run now ↗</button></div></div><div class="workflow-track"><div>01 <strong>Discover</strong><small>Scan company portals</small></div><div>02 <strong>Match</strong><small>Compare role titles</small></div><div>03 <strong>Prepare</strong><small>Build review packets</small></div><div>04 <strong>Your review</strong><small>Decide where to apply</small></div></div><div class="run-meta" id="run-meta" aria-live="polite"></div><details><summary>Run activity & scan details</summary><div id="workflow-log"></div><pre id="scan-output"></pre></details></section>
+    <section class="discoveries hide" id="discoveries"><div class="section-heading"><div><span class="eyebrow">FIND YOUR FIT</span><h2>New opportunities <span id="match-count"></span></h2></div><span class="muted">Preliminary title matches</span></div><div id="match-list"></div></section>
+    <div class="how-grid"><article><span>01 / DISCOVER</span><h3>Less scrolling.<br>More signal.</h3><p>Search the company portals you’ve configured, using your target roles.</p></article><article><span>02 / PREPARE</span><h3>Your experience,<br>within reach.</h3><p>Review packets bring each posting and your source CV together.</p></article><article><span>03 / DECIDE</span><h3>The final move<br>is always yours.</h3><p>Review the full role, tailor your application, and submit when ready.</p></article></div>
+    <footer>Career-Ops · Built for your next chapter <span>Local-first. Human-led.</span></footer>
+  </div>
+</main>
+<div class="wrap hide" id="legacy-dashboard">
+  <div class="top">
+    <div>
+      <div class="eyebrow"><span class="dot"></span> Career-Ops · live · <span id="ts">loading…</span></div>
+      <h1>Application Pipeline</h1>
+      <p class="sub">Reads your real project data. The agent prepares every application up to Submit — you click Submit.</p>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn" id="refresh">Refresh</button>
+      <button class="btn" id="email">📧 Email me digest</button>
+      <button class="btn primary" id="scan">Run scan now</button>
+    </div>
+  </div>
+  <div class="tiles" id="tiles"></div>
+  <div class="bar">
+    <div class="seg" id="view">
+      <button data-v="board" aria-pressed="true">Board</button>
+      <button data-v="needs">Needs You</button>
+      <button data-v="queue">Apply queue</button>
+      <button data-v="tracker">Tracker</button>
+      <button data-v="activity">Activity</button>
+      <button data-v="ask">Ask Claude</button>
+    </div>
+    <span class="spacer"></span>
+    <div class="seg" id="filter"><button data-f="all" aria-pressed="true">All</button><button data-f="apply">Apply</button><button data-f="maybe">Borderline</button><button data-f="skip">Skip</button></div>
+  </div>
+  <div id="board" class="list"></div>
+  <div id="needs" class="hide"></div>
+  <div id="queue" class="hide list"></div>
+  <div id="tracker" class="hide"></div>
+  <div id="activity" class="hide"></div>
+  <div id="ask" class="hide"></div>
+  <footer>Career-Ops local workspace · Scheduled scans require the server to stay running · Review every application before submitting.</footer>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+let STATE={roles:[],events:[],apps:[],needs:[],scanLog:'',cvReady:{},submitted:{}}, curFilter='all', curView='board';
+const RECL={apply:'APPLY',skip:'SKIP',maybe:'MAYBE'};
+const sc=s=>s>=4?'var(--good)':s>=3.6?'var(--warn)':s>=3?'var(--pending)':'var(--bad)';
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2600);}
+
+async function load(){
+  try{const r=await fetch('/api/state');STATE=await r.json();}catch(e){toast('server not reachable');return;}
+  document.getElementById('ts').textContent=new Date(STATE.ts).toLocaleTimeString();
+  renderTiles();renderBoard();renderNeeds();renderQueue();renderTracker();renderActivity();renderAsk();
+}
+function renderAsk(){
+  const a=document.getElementById('ask');
+  const chat=STATE.chat||[];const pend=(STATE.queue||[]).filter(q=>q.status!=='done');
+  const log=chat.length?chat.map(m=>`<div class="msg ${m.role}"><div class="who">${m.role==='user'?'You':'Claude'}</div><div class="bub">${esc(m.text)}</div></div>`).join('')
+    :'<p class="sub">Ask Claude to do anything in your pipeline — "re-evaluate Glean", "scan for new roles", "draft the Bland essay". Your message is queued to the live Claude Code session; the reply appears here when Claude processes it.</p>';
+  a.innerHTML=`<p class="sub">${pend.length?('⏳ '+pend.length+' task(s) queued for Claude'):'No pending tasks — Claude is idle.'} · Replies appear after the Claude Code session processes the queue.</p>
+    <div class="chatlog">${log}</div>
+    <div class="askbar"><textarea id="askta" placeholder="Ask Claude to do something…"></textarea>
+    <button class="btn primary" onclick="ask()">Send to Claude</button></div>`;
+}
+async function ask(){
+  const ta=document.getElementById('askta');if(!ta||!ta.value.trim())return toast('type a message first');
+  const text=ta.value.trim();ta.value='';
+  try{const r=await fetch('/api/ask',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text})});
+    if((await r.json()).ok)toast('sent to Claude — queued');else toast('send failed');
+  }catch(e){toast('server not reachable');}
+  load();
+}
+function renderTiles(){
+  const c={apply:0,maybe:0,skip:0};STATE.roles.forEach(r=>{if(c[r.rec]!=null)c[r.rec]++});
+  const openNeeds=STATE.needs.filter(n=>!n.done).length;
+  document.getElementById('tiles').innerHTML=[
+    {n:STATE.roles.length,l:'Roles',k:''},{n:c.apply,l:'Apply-worthy',k:'good'},
+    {n:openNeeds,l:'Open questions',k:'pending'},{n:Object.keys(STATE.cvReady).length,l:'CVs ready',k:''},
+    {n:STATE.apps.length,l:'In tracker',k:''},
+    {n:(STATE.queue||[]).filter(q=>q.status!=='done').length,l:'Claude queue',k:'pending'},
+  ].map(t=>`<div class="tile ${t.k}"><div class="n">${t.n}</div><div class="l">${t.l}</div></div>`).join('');
+}
+function renderBoard(){
+  const b=document.getElementById('board');
+  const rs=STATE.roles.slice().sort((a,b)=>b.score-a.score).filter(r=>curFilter==='all'||r.rec===curFilter);
+  b.innerHTML='';
+  rs.forEach((r,i)=>{const el=document.createElement('div');el.className='card'+(r.lead?' lead':'');
+    el.innerHTML=`<button class="row"><span class="rank">${i+1}</span>
+      <span style="min-width:0"><span class="co">${esc(r.co)}</span><span class="role">${esc(r.role)}</span>
+      <span class="meta"><span class="chip">${esc(r.arch)}</span><span class="chip">${esc(r.loc)}</span>${r.comp?`<span class="chip">${esc(r.comp)}</span>`:''}</span></span>
+      <span class="right"><span class="score" style="color:${sc(r.score)}">${(+r.score).toFixed(1)}<small>/5</small></span><span class="rec ${r.rec}">${RECL[r.rec]||r.rec}</span></span></button>
+      <div class="detail"><div class="dgrid"><div class="wide"><div class="k">Why it fits</div><div class="v">${esc(r.match)}</div></div>
+      <div class="wide"><div class="k">Gaps</div><ul class="v" style="margin:0;padding-left:18px">${(r.gaps||[]).map(g=>`<li>${esc(g)}</li>`).join('')}</ul></div>
+      <div><div class="k">Legitimacy</div><div class="v">${esc(r.legit)}</div></div><div><div class="k">Strategy</div><div class="v">${esc(r.strategy)}</div></div></div>
+      <div class="verdict"><b>Verdict.</b> ${esc(r.verdict)}</div></div>`;
+    el.querySelector('.row').addEventListener('click',()=>el.classList.toggle('open'));b.appendChild(el);});
+}
+function renderNeeds(){
+  const n=document.getElementById('needs');let html='',last='';
+  const blanks=STATE.blanks||[];
+  const blanksHtml=blanks.length?`<div class="need"><div class="q"><b>Profile blanks</b> — fill once, reused on every application</div>
+    <div class="imp">${blanks.map(esc).join(', ')}</div>
+    <div class="act"><span class="imp">Answer in chat ("my UK work auth is …") or edit data/answer-library.json — the apply flow reuses these.</span></div></div>`:'';
+  if(!STATE.needs.length&&!blanks.length){n.innerHTML='<p class="sub">No open questions right now.</p>';return;}
+  if(!STATE.needs.length){n.innerHTML=blanksHtml||'<p class="sub">No open questions right now.</p>';return;}
+  STATE.needs.forEach(it=>{
+    html+=`<div class="need${it.done?' done':''}"><div class="q"><b>${esc(it.id)}.</b> ${esc(it.q)}</div>
+      <div class="imp">${esc(it.impact)}</div>
+      ${it.done?'<div class="chip">answered</div>':`<textarea id="ta-${it.id}" placeholder="Type your answer..."></textarea>
+      <div class="act"><button class="btn primary" onclick="saveAnswer('${it.id}')">Save answer</button><span class="imp">saved to your profile and used on the next run</span></div>`}</div>`;
+  });
+  n.innerHTML=blanksHtml+html;
+}
+async function makeCv(num,btn){
+  if(btn){btn.disabled=true;btn.textContent='Requesting…';}
+  try{const r=await fetch('/api/make-cv',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({num})});
+    const d=await r.json();
+    if(d.status==='ready'){toast('CV already ready');}
+    else if(d.ok){toast('Requested — tell Claude in chat and it will build this CV');}
+    else{toast('request failed');if(btn){btn.disabled=false;btn.textContent='Make this CV with Claude';}return;}
+  }catch(e){toast('server not reachable');if(btn){btn.disabled=false;btn.textContent='Make this CV with Claude';}return;}
+  load();
+}
+async function saveAnswer(id){
+  const ta=document.getElementById('ta-'+id);if(!ta||!ta.value.trim())return toast('write an answer first');
+  const r=await fetch('/api/answer',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,answer:ta.value.trim()})});
+  if((await r.json()).ok){toast('saved '+id);load();}else toast('save failed');
+}
+function applyState(num){return (STATE.applyStatus||{})[num]?.status||'ready';}
+function renderQueue(){
+  const q=document.getElementById('queue');
+  const ast=STATE.applyStatus||{};
+  const rank={submitted:2,filling:0,ready:1,awaiting_submit:0};
+  // Conveyor: submitted drop to the bottom; everything else highest-fit first.
+  const apply=STATE.roles.filter(r=>r.rec==='apply').sort((a,b)=>{
+    const sa=applyState(a.num),sb=applyState(b.num);
+    if((sa==='submitted')!==(sb==='submitted'))return sa==='submitted'?1:-1;
+    return b.score-a.score;});
+  if(!apply.length){q.innerHTML='<p class="sub">No apply-worthy roles yet.</p>';return;}
+  const left=apply.filter(r=>applyState(r.num)!=='submitted').length;
+  const done=apply.length-left;
+  let firstActive=true;
+  q.innerHTML=`<p class="sub">${left} to go · ${done} submitted. Apply now = auto-fill the whole form from your knowledge base; a window opens with only Submit left for you. Confirm here and the next one moves up.</p>
+    <div class="qacts" style="margin:0 0 14px"><button class="qbtn primary" onclick="applyBatch(3,this)">Apply next 3 at once</button><button class="qbtn" onclick="applyBatch(6,this)">Apply next 6 at once</button><span class="imp" style="align-self:center">opens one filled window per role — you just Submit each</span></div>`+
+    apply.map((r)=>{
+    const st=applyState(r.num);
+    const isSubmitted=st==='submitted';
+    const active=!isSubmitted&&firstActive;if(active)firstActive=false;
+    const cvChip=r.cv?'<span class="rec apply">CV ready</span>':'<span class="chip">CV to make</span>';
+    const inProg=st==='filling'||st==='awaiting_submit';
+    const stChip=isSubmitted?'<span class="rec apply">✓ submitted</span>':st==='filling'?'<span class="chip">Claude filling…</span>':st==='awaiting_submit'?'<span class="rec apply">review + submit</span>':active?'<span class="rec apply">next up</span>':'<span class="chip">queued</span>';
+    const acts=[];
+    if(r.url)acts.push(`<a class="qbtn" href="${esc(r.url)}" target="_blank" rel="noopener">Open posting ↗</a>`);
+    if(r.cv)acts.push(`<a class="qbtn" href="/${esc(r.cv)}" target="_blank" rel="noopener">Tailored CV</a>`);
+    else acts.push(`<button class="qbtn" onclick="makeCv(${r.num},this)">Make CV</button>`);
+    if(r.report)acts.push(`<a class="qbtn" href="/${esc(r.report)}" target="_blank" rel="noopener">Report</a>`);
+    // Primary action by lifecycle:
+    let primary='';
+    if(isSubmitted)primary='<span class="qbtn" style="background:var(--good,#16a34a);border-color:transparent;color:#fff;cursor:default">✓ Submitted — done</span>';
+    else if(inProg)primary=`<button class="qbtn primary" onclick="markSubmitted(${r.num},this)">I submitted it ✓</button><span class="imp" style="align-self:center">${st==='awaiting_submit'?'Auto-filled — review the open browser window, answer the last question, click Submit, then confirm here.':'Claude is auto-filling; a window opens at Submit.'}</span>`;
+    else if(!r.cv)primary='<span class="imp" style="align-self:center">Make the CV first, then Apply now appears.</span>';
+    else primary=`<button class="qbtn primary" onclick="applyNow(${r.num},this)">Apply now</button><button class="qbtn" onclick="markSubmitted(${r.num},this)">Mark submitted ✓</button>`;
+    return `<div class="card${active?' lead':''}${isSubmitted?' done':''}">
+      <div class="row" style="cursor:pointer" onclick="this.parentNode.classList.toggle('open')">
+        <span class="rank">${(+r.score).toFixed(1)}</span>
+        <span style="min-width:0"><span class="co">${esc(r.co)}</span><span class="role">${esc(r.role)}</span>
+          <span class="meta"><span class="chip">${esc(r.loc)}</span>${r.comp?`<span class="chip">${esc(r.comp)}</span>`:''}</span></span>
+        <span class="right">${cvChip} ${stChip}</span></div>
+      <div class="detail">
+        ${r.strategy?`<div class="verdict"><b>How to pitch it.</b> ${esc(r.strategy)}</div>`:''}
+        <div class="qacts">${primary}</div>
+        <div class="qacts" style="margin-top:8px">${acts.join('')}</div>
+      </div></div>`;}).join('');
+}
+async function applyNow(num,btn){
+  if(btn){btn.disabled=true;btn.textContent='Starting…';}
+  try{const r=await fetch('/api/apply',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({num})});
+    const d=await r.json();
+    if(d.status==='submitted')toast('already submitted');
+    else if(d.ok)toast('Apply started — Claude is auto-filling. A window will open at Submit.');
+    else toast('failed');
+  }catch(e){toast('server not reachable');}
+  load();
+}
+async function applyBatch(count,btn){
+  if(btn){btn.disabled=true;btn.textContent='Launching…';}
+  try{const r=await fetch('/api/apply-batch',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({count})});
+    const d=await r.json();
+    if(d.ok)toast(`launching ${d.started.length} filled applications — ${d.started.map(x=>x.co).join(', ')}`);
+    else toast('batch failed');
+  }catch(e){toast('server not reachable');}
+  setTimeout(load,800);
+}
+async function markSubmitted(num,btn){
+  if(btn){btn.disabled=true;btn.textContent='Marking…';}
+  try{const r=await fetch('/api/submitted',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({num})});
+    if((await r.json()).ok)toast('marked submitted — next role is up');else toast('failed');
+  }catch(e){toast('server not reachable');}
+  load();
+}
+function renderTracker(){
+  const t=document.getElementById('tracker');
+  if(!STATE.apps.length){t.innerHTML='<p class="sub">Tracker empty.</p>';return;}
+  t.innerHTML=`<div style="overflow-x:auto"><table><thead><tr><th>#</th><th>Company</th><th>Role</th><th>Score</th><th>Status</th><th>PDF</th></tr></thead><tbody>
+    ${STATE.apps.map(a=>`<tr><td>${esc(a.num)}</td><td>${esc(a.company)}</td><td>${esc(a.role)}</td><td>${esc(a.score)}</td><td>${esc(a.status)}</td><td>${esc(a.pdf)}</td></tr>`).join('')}</tbody></table></div>`;
+}
+function renderActivity(){
+  const a=document.getElementById('activity');
+  const evs=STATE.events.slice().sort((x,y)=>String(y.ts).localeCompare(String(x.ts)));
+  a.innerHTML=evs.map(e=>`<div class="ev"><span class="ic">${esc(e.ic||'•')}</span><span><span class="t">${esc(e.t)}</span><span class="d">${esc(e.d||'')}</span></span><span class="ts">${new Date(e.ts).toLocaleString(undefined,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</span></div>`).join('');
+}
+function showView(v){curView=v;document.querySelectorAll('#view button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===v));
+  ['board','needs','queue','tracker','activity','ask'].forEach(id=>document.getElementById(id).classList.toggle('hide',id!==v));
+  document.getElementById('filter').style.visibility=v==='board'?'visible':'hidden';}
+document.getElementById('view').addEventListener('click',e=>{const b=e.target.closest('button');if(b)showView(b.dataset.v);});
+document.getElementById('filter').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;document.querySelectorAll('#filter button').forEach(x=>x.setAttribute('aria-pressed',x===b));curFilter=b.dataset.f;renderBoard();});
+document.getElementById('refresh').addEventListener('click',load);
+document.getElementById('scan').addEventListener('click',async()=>{const btn=document.getElementById('scan');btn.disabled=true;btn.textContent='Scanning…';
+  try{const r=await fetch('/api/scan',{method:'POST'});const d=await r.json();toast(d.added>0?`${d.added} new role(s) found`:'scan done — no new roles');}catch(e){toast('scan failed');}
+  btn.disabled=false;btn.textContent='Run scan now';load();});
+document.getElementById('email').addEventListener('click',async()=>{const b=document.getElementById('email');b.disabled=true;b.textContent='Queuing…';
+  try{const r=await fetch('/api/email-digest',{method:'POST'});if((await r.json()).ok)toast('digest queued — Claude will email you');else toast('failed');}catch(e){toast('server not reachable');}
+  b.disabled=false;b.textContent='📧 Email me digest';load();});
+load();setInterval(load,20000);
+</script>
+<script src="/workspace.js"></script>
+</body>
+</html>

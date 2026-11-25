@@ -1,0 +1,35 @@
+# ── ATS / Ranking Score Weights ───────────────────────────────────────────────
+# Each weight is a relative multiplier used when computing per-job scores.
+# All values are applied within the 0-100 range used by autopilotRunner.
+# Modify these to tune how the ranker prioritises different signals.
+
+dimensions:
+  # How closely the job title/keywords match the user's preferred roles.
+  role_match:
+    weight: 35
+    description: "Job title relevance to user's target roles"
+
+  # Location match (city / country / remote).
+  location_match:
+    weight: 25
+    description: "Location compatibility (exact, remote, country fallback)"
+
+  # Keyword overlap between job requirements and user's skills.
+  skill_overlap:
+    weight: 10
+    description: "Skill keyword match per skill tag"
+
+  # Reputation / reliability of the ATS platform (e.g. Greenhouse > unknown).
+  ats_platform:
+    weight: 10
+    description: "Known ATS platform bonus (Greenhouse / Lever / Ashby)"
+
+  # Positive feedback loop: boost roles similar to ones the user already applied to.
+  applied_role_feedback:
+    weight: 30         # capped at this value regardless of match density
+    description: "Boost from matching previously-applied role keywords"
+
+# ── ATS Optimisation Target ───────────────────────────────────────────────────
+# CV optimisation loop keeps iterating until this score is reached (or maxIterations).
+ats_optimisation_target: 85
+ats_optimisation_max_iterations: 3

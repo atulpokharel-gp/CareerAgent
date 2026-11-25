@@ -1,0 +1,34 @@
+# ── User Apply Policy ─────────────────────────────────────────────────────────
+# Controls how the autonomous workflow decides whether to submit applications.
+# All values here act as defaults; per-session overrides in AutomationSettings
+# take precedence at runtime.
+
+apply_policy:
+  # Minimum ATS/ranking score (0-100) required before auto-submitting.
+  # Jobs below this threshold are saved with status "blocked_below_threshold".
+  # Equivalent to 4.0/5.0 on the career-ops evaluation scale.
+  min_apply_score: 80
+
+  # When true, the pipeline runs end-to-end but never actually submits.
+  # Useful for testing the full pipeline. Status: "blocked_dry_run".
+  dry_run: false
+
+  # When true, every job is queued for human review instead of auto-submitting.
+  # Status: "blocked_safe_mode".
+  safe_mode: false
+
+  # Maximum number of applications the workflow will auto-submit in a single day.
+  # 0 = no limit. Counted against the persistent applications store.
+  max_applications_per_day: 10
+
+  # Whether the system is permitted to click "Submit" autonomously.
+  # Set to false to always stop at the form-fill stage for human review.
+  allow_auto_submit: true
+
+# ── Scan Settings ─────────────────────────────────────────────────────────────
+scan:
+  # Default maximum jobs to process per workflow run.
+  default_max_jobs: 10
+
+  # Whether to verify job posting liveness before processing (slower but safer).
+  verify_liveness: false

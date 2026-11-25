@@ -1,0 +1,119 @@
+{
+  "lastUpdated": 1780001945640,
+  "cvVersions": [],
+  "applications": [],
+  "timeline": null,
+  "chatHistory": [
+    {
+      "role": "assistant",
+      "content": "Sure! I'll go through your CV and make some improvements for clarity, formatting, and to enhance ATS compatibility. Here’s the updated version:\n\n\n\nThis version enhances readability, organizes information clearly, and includes keywords that are likely to be picked up by ATS systems. Let me know if you need any further changes!",
+      "at": 1780001945640
+    },
+    {
+      "role": "user",
+      "content": "fixed my cv",
+      "at": 1780001945639
+    },
+    {
+      "role": "assistant",
+      "content": "It seems like your message got jumbled. Could you please clarify what you need assistance with regarding your CV?",
+      "at": 1780001910729
+    },
+    {
+      "role": "user",
+      "content": "ashfkjhfafhalsf",
+      "at": 1780001910728
+    }
+  ],
+  "trackedJobs": [
+    {
+      "url": "https://sumup.com/careers/positions/8066192002?gh_jid=8066192002",
+      "company": "SumUp",
+      "title": "Independent Sales Agents (ISA) -Merchant Services across the  US",
+      "location": "Arizona, United States; Atlanta, Georgia, United States; Colorado, United States; District of Columbia, United States; Florida, United States; Georgia, United States; Illinois, United States; Indiana, United States; Kansas, United States; Louisiana, United States; Michigan, United States; Minneapolis, Minnesota, United States; Missouri, United States; Nevada, United States; New Mexico, United States; North Carolina, United States; Ohio, United States; Oklahoma, United States; Oregon, United States; Pennsylvania, United States; South Carolina, United States; Tennessee, United States; Texas, United States; Utah, United States; Virginia, United States; Washington, United States; Wisconsin, United States",
+      "score": 25,
+      "reasons": [
+        "Location match: oh"
+      ],
+      "status": "shortlisted",
+      "scannedAt": 1780000533856
+    },
+    {
+      "url": "https://coreweave.com/careers/job?4677325006&board=coreweave&gh_jid=4677325006",
+      "company": "Weights & Biases (CoreWeave)",
+      "title": "Inventory Control Regional Manager",
+      "location": "Aberdeen, SD / Ellendale, ND / Caledonia, MI / Elk Grove Village, IL / Volo, IL / West Chicago, IL / Lebanon, OH / Columbus, OH / Cincinnati, OH / Sandusky, OH",
+      "score": 25,
+      "reasons": [
+        "Location match: oh"
+      ],
+      "status": "shortlisted",
+      "scannedAt": 1780001643080
+    },
+    {
+      "url": "https://job-boards.greenhouse.io/runpod/jobs/5020164008",
+      "company": "RunPod",
+      "title": "Engineering Manager - Product & Platform Delivery",
+      "location": "Remote, USA",
+      "score": 35,
+      "reasons": [
+        "Location match: usa",
+        "ATS-compatible endpoint"
+      ],
+      "status": "shortlisted",
+      "scannedAt": 1780001754558
+    },
+    {
+      "url": "https://job-boards.greenhouse.io/runpod/jobs/4142227008",
+      "company": "RunPod",
+      "title": "Senior Software Engineer (Cloud)",
+      "location": "Remote, USA",
+      "score": 35,
+      "reasons": [
+        "Location match: usa",
+        "ATS-compatible endpoint"
+      ],
+      "status": "shortlisted",
+      "scannedAt": 1780001842496
+    },
+    {
+      "url": "https://job-boards.greenhouse.io/runpod/jobs/4785681008",
+      "company": "RunPod",
+      "title": "Software Engineer (Full-Stack)",
+      "location": "Remote, USA",
+      "score": 35,
+      "reasons": [
+        "Location match: usa",
+        "ATS-compatible endpoint"
+      ],
+      "status": "shortlisted",
+      "scannedAt": 1780001842496
+    },
+    {
+      "url": "https://job-boards.greenhouse.io/isomorphiclabs/jobs/5671355004",
+      "company": "Isomorphic Labs",
+      "title": "Computational Drug Designer, London, Lausanne",
+      "location": "Lausanne; London",
+      "score": 35,
+      "reasons": [
+        "Location match: usa",
+        "ATS-compatible endpoint"
+      ],
+      "status": "shortlisted",
+      "scannedAt": 1780001842496
+    },
+    {
+      "url": "https://job-boards.greenhouse.io/isomorphiclabs/jobs/5741351004",
+      "company": "Isomorphic Labs",
+      "title": "Team / Research Leader, Computational Drug Design, London, Lausanne",
+      "location": "Lausanne; London",
+      "score": 35,
+      "reasons": [
+        "Location match: usa",
+        "ATS-compatible endpoint"
+      ],
+      "status": "shortlisted",
+      "scannedAt": 1780001842496
+    }
+  ]
+}

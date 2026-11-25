@@ -1,0 +1,62 @@
+[
+  {
+    "num": 12,
+    "slug": "anthropic-research",
+    "htmlPath": "output/cv-atul-pokharel-anthropic-research-12.html",
+    "pdfRel": "output/cv-atul-pokharel-anthropic-research-12-2026-11-24.pdf"
+  },
+  {
+    "num": 16,
+    "slug": "bland",
+    "htmlPath": "output/cv-atul-pokharel-bland-16.html",
+    "pdfRel": "output/cv-atul-pokharel-bland-16-2026-11-24.pdf"
+  },
+  {
+    "num": 5,
+    "slug": "decagon",
+    "htmlPath": "output/cv-atul-pokharel-decagon-5.html",
+    "pdfRel": "output/cv-atul-pokharel-decagon-5-2026-11-24.pdf"
+  },
+  {
+    "num": 8,
+    "slug": "glean-runtime",
+    "htmlPath": "output/cv-atul-pokharel-glean-runtime-8.html",
+    "pdfRel": "output/cv-atul-pokharel-glean-runtime-8-2026-11-24.pdf"
+  },
+  {
+    "num": 29,
+    "slug": "coreweave-senior-fde",
+    "htmlPath": "output/cv-atul-pokharel-coreweave-senior-fde-29.html",
+    "pdfRel": "output/cv-atul-pokharel-coreweave-senior-fde-29-2026-11-24.pdf"
+  },
+  {
+    "num": 30,
+    "slug": "coreweave-software-ai",
+    "htmlPath": "output/cv-atul-pokharel-coreweave-software-ai-30.html",
+    "pdfRel": "output/cv-atul-pokharel-coreweave-software-ai-30-2026-11-24.pdf"
+  },
+  {
+    "num": 33,
+    "slug": "intercom-fin",
+    "htmlPath": "output/cv-atul-pokharel-intercom-fin-33.html",
+    "pdfRel": "output/cv-atul-pokharel-intercom-fin-33-2026-11-24.pdf"
+  },
+  {
+    "num": 35,
+    "slug": "palantir-fde",
+    "htmlPath": "output/cv-atul-pokharel-palantir-fde-35.html",
+    "pdfRel": "output/cv-atul-pokharel-palantir-fde-35-2026-11-24.pdf"
+  },
+  {
+    "num": 25,
+    "slug": "glean-founding-fde",
+    "htmlPath": "output/cv-atul-pokharel-glean-founding-fde-25.html",
+    "pdfRel": "output/cv-atul-pokharel-glean-founding-fde-25-2026-11-24.pdf"
+  },
+  {
+    "num": 24,
+    "slug": "glean-data-evals",
+    "htmlPath": "output/cv-atul-pokharel-glean-data-evals-24.html",
+    "pdfRel": "output/cv-atul-pokharel-glean-data-evals-24-2026-11-24.pdf"
+  }
+]
